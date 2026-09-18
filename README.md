@@ -5,13 +5,14 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/DING-HAO-RAN/ai-helper/releases/latest"><img src="https://img.shields.io/github/v/release/DING-HAO-RAN/ai-helper?color=00f0ff&style=flat-square" alt="Latest Release" /></a>
+  <a href="https://github.com/DING-HAO-RAN/ai-helper/releases/download/v1.0.0/AI-Helper.exe"><img src="https://img.shields.io/badge/Download-AI--Helper.exe-ff0055.svg?style=flat-square&logo=windows" alt="Download Exe" /></a>
   <img src="https://img.shields.io/badge/License-MIT-00f0ff.svg?style=flat-square" alt="MIT License" />
   <img src="https://img.shields.io/badge/Tauri-v2-24c8db.svg?style=flat-square&logo=tauri" alt="Tauri v2" />
   <img src="https://img.shields.io/badge/Rust-2021-orange.svg?style=flat-square&logo=rust" alt="Rust 2021" />
   <img src="https://img.shields.io/badge/Vue-3.5-42b883.svg?style=flat-square&logo=vue.js" alt="Vue 3" />
   <img src="https://img.shields.io/badge/Vite-6.0-646cff.svg?style=flat-square&logo=vite" alt="Vite" />
   <img src="https://img.shields.io/badge/Security-Windows%20DPAPI-00ff9d.svg?style=flat-square" alt="DPAPI" />
-  <img src="https://img.shields.io/badge/Platform-Windows-0078d6.svg?style=flat-square&logo=windows" alt="Windows" />
 </p>
 
 一款极度轻量、超低资源消耗（内存约 30~50MB）、现代赛博朋克暗黑科技风格的 AI 辅助桌面工具与 AI 命令行接口集成工具。
