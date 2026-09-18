@@ -3,19 +3,13 @@
 //! 本模块负责毫秒级响应，直接在终端标准输出明文令牌或相关信息，
 //! 并以退出码结束进程，避免启动昂贵的 GUI 渲染开销。
 
+use std::io::Write;
 use crate::storage::{get_token_secret, list_token_views, save_token};
 
 pub fn handle_cli_args(args: &[String]) -> bool {
     // 若只有程序自身名称，则说明是普通 GUI 启动
     if args.len() <= 1 {
         return false;
-    }
-
-    // Windows GUI 子系统模式下，当检测到命令行调用时，动态附着到调用者的父终端控制台
-    #[cfg(target_os = "windows")]
-    unsafe {
-        use windows_sys::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
-        let _ = AttachConsole(ATTACH_PARENT_PROCESS);
     }
 
     let command = args[1].as_str();
@@ -31,6 +25,7 @@ pub fn handle_cli_args(args: &[String]) -> bool {
         }
         "--version" | "-v" => {
             println!("AI Helper v1.0.0 (Cyber Matrix Edition)");
+            let _ = std::io::stdout().flush();
             true
         }
         _ => false,
@@ -51,10 +46,12 @@ fn handle_token_subcommand(subargs: &[String]) {
                 Ok(token) => {
                     // 直接纯文本输出到 stdout，便于命令行管道捕获
                     print!("{}", token);
+                    let _ = std::io::stdout().flush();
                     std::process::exit(0);
                 }
                 Err(err) => {
                     eprintln!("获取 GitHub 令牌失败: {}", err);
+                    let _ = std::io::stderr().flush();
                     std::process::exit(1);
                 }
             }
@@ -63,6 +60,7 @@ fn handle_token_subcommand(subargs: &[String]) {
             let tokens = list_token_views();
             if tokens.is_empty() {
                 println!("暂无保存的 GitHub 令牌。");
+                let _ = std::io::stdout().flush();
                 std::process::exit(0);
             }
 
@@ -75,6 +73,7 @@ fn handle_token_subcommand(subargs: &[String]) {
                     t.alias, t.masked_token, default_mark, t.note
                 );
             }
+            let _ = std::io::stdout().flush();
             std::process::exit(0);
         }
         "set" => {
@@ -120,6 +119,7 @@ fn print_help() {
   PowerShell:  $env:GITHUB_TOKEN = (ai-helper token get)
   Bash / Zsh:  export GITHUB_TOKEN=$(ai-helper token get)
 "#);
+    let _ = std::io::stdout().flush();
 }
 
 #[cfg(test)]

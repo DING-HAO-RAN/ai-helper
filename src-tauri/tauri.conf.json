@@ -4,9 +4,7 @@
   "version": "1.0.0",
   "identifier": "com.aihelper.matrix",
   "build": {
-    "beforeDevCommand": "pnpm dev",
     "beforeBuildCommand": "pnpm build",
-    "devUrl": "http://127.0.0.1:1420",
     "frontendDist": "../dist"
   },
   "app": {
@@ -36,7 +34,7 @@
         "skipTaskbar": true,
         "resizable": false,
         "visible": false,
-        "url": "/#floating"
+        "url": "index.html#floating"
       }
     ],
     "security": {
