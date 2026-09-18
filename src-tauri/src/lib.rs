@@ -1,4 +1,6 @@
+pub mod app;
 pub mod cli;
+pub mod commands;
 pub mod crypto;
 pub mod scanner;
 pub mod storage;
