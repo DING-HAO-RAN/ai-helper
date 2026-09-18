@@ -11,6 +11,13 @@ pub fn handle_cli_args(args: &[String]) -> bool {
         return false;
     }
 
+    // Windows GUI 子系统模式下，当检测到命令行调用时，动态附着到调用者的父终端控制台
+    #[cfg(target_os = "windows")]
+    unsafe {
+        use windows_sys::Win32::System::Console::{AttachConsole, ATTACH_PARENT_PROCESS};
+        let _ = AttachConsole(ATTACH_PARENT_PROCESS);
+    }
+
     let command = args[1].as_str();
 
     match command {

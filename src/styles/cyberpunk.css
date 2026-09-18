@@ -30,7 +30,7 @@
 }
 
 body {
-  background-color: var(--cyber-bg-base);
+  background: transparent;
   color: var(--cyber-text-main);
   font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
   overflow: hidden;

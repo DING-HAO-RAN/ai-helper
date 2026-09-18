@@ -55,7 +55,7 @@
 import { ref, onMounted, onUnmounted, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { LogicalSize } from "@tauri-apps/api/dpi";
+import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
 import { Copy, Maximize2, Power } from "lucide-vue-next";
 
 const showMenu = ref(false);
@@ -65,14 +65,27 @@ const justCopied = ref(false);
 let startX = 0;
 let startY = 0;
 let dragOccurred = false;
+let originalPos: { x: number; y: number } | null = null;
 
-// 动态适应菜单尺寸
+// 动态适应菜单尺寸与防屏幕边缘裁剪补偿
 watch(showMenu, async (open) => {
   const currentWin = getCurrentWebviewWindow();
-  if (open) {
-    await currentWin.setSize(new LogicalSize(240, 240));
-  } else {
-    await currentWin.setSize(new LogicalSize(72, 72));
+  try {
+    if (open) {
+      const pos = await currentWin.outerPosition();
+      originalPos = { x: pos.x, y: pos.y };
+      // 向左偏移展开，防止菜单超出右侧屏幕
+      await currentWin.setPosition(new PhysicalPosition(pos.x - 160, pos.y));
+      await currentWin.setSize(new LogicalSize(240, 240));
+    } else {
+      await currentWin.setSize(new LogicalSize(72, 72));
+      if (originalPos) {
+        await currentWin.setPosition(new PhysicalPosition(originalPos.x, originalPos.y));
+        originalPos = null;
+      }
+    }
+  } catch (e) {
+    console.error("调整悬浮球尺寸/位置失败:", e);
   }
 });
 
@@ -283,7 +296,7 @@ const handleExitApp = async () => {
 .cyber-context-menu {
   position: absolute;
   top: 68px;
-  left: 6px;
+  right: 10px;
   width: 215px;
   background: rgba(12, 16, 28, 0.98);
   border: 1px solid rgba(0, 240, 255, 0.4);

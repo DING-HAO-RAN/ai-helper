@@ -1,5 +1,5 @@
 <template>
-  <header class="titlebar" data-tauri-drag-region>
+  <header class="titlebar" data-tauri-drag-region @dblclick="handleToggleMaximize">
     <!-- 左侧 Logo 与系统指示灯 -->
     <div class="brand-zone" data-tauri-drag-region>
       <div class="logo-box">

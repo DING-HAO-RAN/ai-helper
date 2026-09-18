@@ -138,6 +138,20 @@ pub fn inject_agents(paths: Vec<String>) -> InjectSummary {
 #[tauri::command]
 pub fn open_in_explorer(path: String) -> Result<(), String> {
     let p = Path::new(&path);
+
+    #[cfg(target_os = "windows")]
+    {
+        if p.is_file() {
+            // 在 Windows 资源管理器中直接定位并高亮选中该文件
+            let res = std::process::Command::new("explorer.exe")
+                .arg(format!("/select,{}", path))
+                .spawn();
+            if res.is_ok() {
+                return Ok(());
+            }
+        }
+    }
+
     let target = if p.is_file() {
         p.parent().unwrap_or(p)
     } else {

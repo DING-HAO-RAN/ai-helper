@@ -26,7 +26,7 @@ pub fn get_storage_path() -> PathBuf {
     app_dir.join("storage.json")
 }
 
-/// 从本地文件中读取数据，若不存在或损坏则返回默认数据
+/// 从本地文件中读取数据，若不存在或损坏则返回默认数据，并在损坏时安全备份
 pub fn load_data() -> AppData {
     let _guard = STORAGE_LOCK.lock().unwrap();
     let path = get_storage_path();
@@ -35,7 +35,20 @@ pub fn load_data() -> AppData {
     }
 
     match fs::read_to_string(&path) {
-        Ok(content) => serde_json::from_str::<AppData>(&content).unwrap_or_default(),
+        Ok(content) => {
+            if content.trim().is_empty() {
+                return AppData::default();
+            }
+            match serde_json::from_str::<AppData>(&content) {
+                Ok(data) => data,
+                Err(err) => {
+                    eprintln!("警告: 本地存储数据解析异常: {}，正在创建安全备份副本", err);
+                    let backup_path = path.with_extension("json.corrupted.bak");
+                    let _ = fs::copy(&path, &backup_path);
+                    AppData::default()
+                }
+            }
+        }
         Err(_) => AppData::default(),
     }
 }

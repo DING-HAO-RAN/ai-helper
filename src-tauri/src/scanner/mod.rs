@@ -25,18 +25,35 @@ pub struct AgentFileInfo {
     pub tool_or_project: String,
 }
 
-/// 获取 Windows 上所有有效的盘符（例如 C:\, D:\ 等）
+/// 获取 Windows 上所有有效的硬盘驱动器根目录（例如 C:\, D:\ 等）
 pub fn get_scan_roots() -> Vec<PathBuf> {
     let mut roots = Vec::new();
 
     #[cfg(target_os = "windows")]
     {
-        // 扫描从 A 到 Z 的盘符
-        for drive_letter in b'A'..=b'Z' {
-            let path_str = format!("{}:\\", drive_letter as char);
-            let path = PathBuf::from(&path_str);
-            if path.exists() && path.is_dir() {
-                roots.push(path);
+        use windows_sys::Win32::Storage::FileSystem::{GetDriveTypeW, GetLogicalDrives};
+
+        const DRIVE_REMOVABLE: u32 = 2;
+        const DRIVE_FIXED: u32 = 3;
+
+        let drive_mask = unsafe { GetLogicalDrives() };
+        for i in 0..26 {
+            if (drive_mask & (1 << i)) != 0 {
+                let letter = (b'A' + i as u8) as char;
+                // 跳过 A 和 B（通常为软驱）
+                if letter == 'A' || letter == 'B' {
+                    continue;
+                }
+                let path_str = format!("{}:\\", letter);
+                let wide_path: Vec<u16> = path_str.encode_utf16().chain(std::iter::once(0)).collect();
+                let drive_type = unsafe { GetDriveTypeW(wide_path.as_ptr()) };
+                // 仅扫描固态硬盘、机械硬盘和移动硬盘
+                if drive_type == DRIVE_FIXED || drive_type == DRIVE_REMOVABLE {
+                    let p = PathBuf::from(&path_str);
+                    if p.exists() {
+                        roots.push(p);
+                    }
+                }
             }
         }
     }
