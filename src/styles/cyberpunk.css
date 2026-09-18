@@ -1,0 +1,210 @@
+/* 赛博朋克全局科技风格设计系统 */
+
+:root {
+  --cyber-bg-base: #08090f;
+  --cyber-bg-surface: rgba(14, 17, 27, 0.85);
+  --cyber-bg-card: rgba(20, 24, 38, 0.7);
+  --cyber-bg-input: rgba(10, 13, 22, 0.85);
+
+  --cyber-neon-cyan: #00f0ff;
+  --cyber-neon-pink: #ff0055;
+  --cyber-neon-green: #00ff9d;
+  --cyber-neon-yellow: #fcee0a;
+  --cyber-neon-purple: #9d00ff;
+
+  --cyber-border-dim: rgba(0, 240, 255, 0.15);
+  --cyber-border-active: rgba(0, 240, 255, 0.6);
+  --cyber-glow-cyan: 0 0 12px rgba(0, 240, 255, 0.35);
+  --cyber-glow-pink: 0 0 12px rgba(255, 0, 85, 0.4);
+  --cyber-glow-green: 0 0 10px rgba(0, 255, 157, 0.4);
+
+  --cyber-text-main: #e0f2fe;
+  --cyber-text-muted: #64748b;
+  --cyber-text-bright: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--cyber-bg-base);
+  color: var(--cyber-text-main);
+  font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* 赛博朋克风格精致滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(10, 12, 18, 0.6);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 240, 255, 0.25);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--cyber-neon-cyan);
+  box-shadow: var(--cyber-glow-cyan);
+}
+
+/* 赛博朋克卡片与面板基础 */
+.cyber-card {
+  background: var(--cyber-bg-card);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--cyber-border-dim);
+  border-radius: 6px;
+  position: relative;
+  transition: all 0.2s ease;
+}
+
+.cyber-card:hover {
+  border-color: var(--cyber-border-active);
+  box-shadow: var(--cyber-glow-cyan);
+}
+
+/* 赛博朋克按钮 */
+.cyber-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid var(--cyber-border-dim);
+  background: rgba(15, 23, 42, 0.8);
+  color: var(--cyber-neon-cyan);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  outline: none;
+}
+
+.cyber-btn:hover {
+  background: rgba(0, 240, 255, 0.15);
+  border-color: var(--cyber-neon-cyan);
+  box-shadow: var(--cyber-glow-cyan);
+  color: #fff;
+}
+
+.cyber-btn:active {
+  transform: translateY(1px);
+}
+
+.cyber-btn-primary {
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.2), rgba(0, 162, 255, 0.35));
+  border-color: var(--cyber-neon-cyan);
+  color: #fff;
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.25);
+}
+
+.cyber-btn-primary:hover {
+  background: linear-gradient(135deg, rgba(0, 240, 255, 0.35), rgba(0, 162, 255, 0.55));
+  box-shadow: var(--cyber-glow-cyan);
+}
+
+.cyber-btn-danger {
+  color: var(--cyber-neon-pink);
+  border-color: rgba(255, 0, 85, 0.3);
+}
+
+.cyber-btn-danger:hover {
+  background: rgba(255, 0, 85, 0.2);
+  border-color: var(--cyber-neon-pink);
+  box-shadow: var(--cyber-glow-pink);
+  color: #fff;
+}
+
+.cyber-btn-success {
+  color: var(--cyber-neon-green);
+  border-color: rgba(0, 255, 157, 0.3);
+}
+
+.cyber-btn-success:hover {
+  background: rgba(0, 255, 157, 0.2);
+  border-color: var(--cyber-neon-green);
+  box-shadow: var(--cyber-glow-green);
+  color: #fff;
+}
+
+/* 赛博朋克输入框与文本域 */
+.cyber-input {
+  background: var(--cyber-bg-input);
+  border: 1px solid var(--cyber-border-dim);
+  border-radius: 4px;
+  color: var(--cyber-text-main);
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+.cyber-input:focus {
+  border-color: var(--cyber-neon-cyan);
+  box-shadow: 0 0 8px rgba(0, 240, 255, 0.3);
+  background: rgba(14, 19, 32, 0.95);
+}
+
+/* 霓虹发光徽章 */
+.cyber-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  font-size: 11px;
+  border-radius: 3px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.cyber-badge-cyan {
+  background: rgba(0, 240, 255, 0.12);
+  color: var(--cyber-neon-cyan);
+  border: 1px solid rgba(0, 240, 255, 0.3);
+}
+
+.cyber-badge-pink {
+  background: rgba(255, 0, 85, 0.12);
+  color: var(--cyber-neon-pink);
+  border: 1px solid rgba(255, 0, 85, 0.3);
+}
+
+.cyber-badge-green {
+  background: rgba(0, 255, 157, 0.12);
+  color: var(--cyber-neon-green);
+  border: 1px solid rgba(0, 255, 157, 0.3);
+}
+
+.cyber-badge-yellow {
+  background: rgba(252, 238, 10, 0.12);
+  color: var(--cyber-neon-yellow);
+  border: 1px solid rgba(252, 238, 10, 0.3);
+}
+
+/* 脉冲呼吸动画 */
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.6; transform: scale(1.05); }
+}
+
+.pulse-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--cyber-neon-green);
+  box-shadow: 0 0 8px var(--cyber-neon-green);
+  animation: pulse-glow 2s infinite ease-in-out;
+}
