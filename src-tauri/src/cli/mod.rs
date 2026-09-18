@@ -117,8 +117,6 @@ fn print_help() {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_help_args_handling() {
         let args = vec!["ai-helper".to_string(), "--version".to_string()];

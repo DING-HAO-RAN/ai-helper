@@ -1,5 +1,6 @@
 pub mod cli;
 pub mod crypto;
+pub mod scanner;
 pub mod storage;
 
 #[cfg(test)]
