@@ -22,8 +22,11 @@ walkdir = "2.5"
 chrono = { version = "0.4", features = ["serde"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json"] }
 open = "5.3"
+uuid = { version = "1.10", features = ["v4"] }
+base64 = "0.22"
 windows-sys = { version = "0.59", features = [
     "Win32_Security_Cryptography",
     "Win32_Foundation",
-    "Win32_Storage_FileSystem"
+    "Win32_Storage_FileSystem",
+    "Win32_System_Memory"
 ] }
