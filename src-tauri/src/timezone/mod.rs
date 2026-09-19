@@ -4,6 +4,7 @@
 //! 以及 Windows 系统时区一键对齐与防遗忘自动恢复能力。
 
 pub mod cdp;
+pub mod injector;
 pub mod types;
 
 use std::fs;
@@ -14,6 +15,7 @@ use std::time::Duration;
 use serde_json::Value;
 
 use self::cdp::send_cdp_timezone_override;
+use self::injector::{inject_all_chatgpt_processes, uninject_all_chatgpt_processes};
 use self::types::{ChatGPTStatus, ProxyGeoInfo, TimezonePreset};
 
 /// 全局记录已注入到 ChatGPT 的时区标识与原始系统时区
@@ -336,7 +338,49 @@ pub async fn check_cdp_port_ready(port: u16) -> bool {
     false
 }
 
-/// 针对已开启 9222 调试端口的 ChatGPT 实例注入时区覆盖
+/// 核心内存线程级时区注入：无需开启任何 CDP 端口，直接注入 ChatGPT 进程底层 API
+pub fn inject_chatgpt_memory_timezone(tz_identifier: &str) -> Result<String, String> {
+    let win_tz = if tz_identifier.contains('/') {
+        iana_to_windows_tz(tz_identifier)
+    } else {
+        tz_identifier
+    };
+
+    let pids = get_running_chatgpt_pids();
+    if pids.is_empty() {
+        // 如果未运行，尝试启动 ChatGPT
+        if let Some(exe_path) = detect_chatgpt_executable_path() {
+            #[cfg(target_os = "windows")]
+            {
+                let _ = Command::new(&exe_path).spawn();
+                std::thread::sleep(Duration::from_millis(1500));
+            }
+        } else {
+            return Err("ChatGPT 未运行，且未能在系统中定位到可执行文件。请先手动启动 ChatGPT 客户端！".to_string());
+        }
+    }
+
+    // 执行注入
+    match inject_all_chatgpt_processes(win_tz) {
+        Ok(count) => {
+            let mut active = ACTIVE_OVERRIDE_TZ.lock().unwrap();
+            *active = Some(format!("{} ({})", tz_identifier, win_tz));
+            Ok(format!(
+                "注入成功！已成功将时区 [{}] 注入至 {} 个 ChatGPT 进程与渲染线程中，Windows 全局时区不受影响！",
+                win_tz, count
+            ))
+        }
+        Err(err) => Err(err),
+    }
+}
+
+/// 恢复 ChatGPT 进程原始时区
+pub fn uninject_chatgpt_memory_timezone() -> Result<String, String> {
+    let restored = uninject_all_chatgpt_processes();
+    let mut active = ACTIVE_OVERRIDE_TZ.lock().unwrap();
+    *active = None;
+    Ok(format!("已成功将 {} 个 ChatGPT 进程恢复为原始时区状态", restored))
+}
 pub async fn inject_running_chatgpt_cdp(
     port: u16,
     timezone_id: &str,

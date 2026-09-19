@@ -142,25 +142,26 @@
       <!-- 操作按钮群 -->
       <div class="actions-footer">
         <div class="action-left">
+          <!-- 核心一键线程注入按钮 -->
           <button
             class="cyber-btn cyber-btn-primary launch-inject-btn"
             :disabled="isOperating || !selectedTimezone"
-            title="关闭旧进程，以 CDP 调试通道启动 ChatGPT 并将目标时区注入到所有页面"
-            @click="handleLaunchWithTimezone"
+            title="直接向 ChatGPT 所有运行中的进程与渲染线程注入目标时区，免重启且不改 Windows 全局时区"
+            @click="handleInjectThreadTimezone"
           >
-            <Power :size="15" />
-            <span>{{ isOperating ? "正在注入启动..." : "⚡ 启动并独立注入 ChatGPT (推荐)" }}</span>
+            <Zap :size="15" />
+            <span>{{ isOperating ? "正在注入时区..." : "⚡ 注入 ChatGPT 线程时区 (推荐·秒生效)" }}</span>
           </button>
 
           <button
-            v-if="chatgptStatus?.cdp_available"
+            v-if="chatgptStatus?.active_timezone"
             class="cyber-btn"
-            :disabled="isOperating || !selectedTimezone"
-            title="对当前运行中的 ChatGPT 所有网页即时热更新时区"
-            @click="handleInjectRunning"
+            :disabled="isOperating"
+            title="撤销当前对 ChatGPT 进程的时区 Hook，恢复其默认状态"
+            @click="handleRestoreThreadTimezone"
           >
-            <RefreshCw :size="14" />
-            <span>热更新当前运行中的时区</span>
+            <RotateCcw :size="14" />
+            <span>撤销注入</span>
           </button>
         </div>
 
@@ -198,7 +199,6 @@ import {
   RefreshCw,
   Sparkles,
   Zap,
-  Power,
   Monitor,
   RotateCcw,
 } from "lucide-vue-next";
@@ -248,36 +248,33 @@ onMounted(async () => {
   await Promise.all([handleDetectProxy(), fetchStatus(), loadPresets()]);
 });
 
-// 以独立时区启动并注入 ChatGPT
-const handleLaunchWithTimezone = async () => {
+// 核心：直接向 ChatGPT 进程与线程注入目标时区 (免重启、零影响系统)
+const handleInjectThreadTimezone = async () => {
   if (!selectedTimezone.value) return;
 
   isOperating.value = true;
   try {
-    const msg = await invoke<string>("launch_chatgpt_isolated_timezone", {
+    const msg = await invoke<string>("inject_chatgpt_thread_timezone", {
       timezoneId: selectedTimezone.value,
     });
     alert(msg);
     await fetchStatus();
   } catch (err: any) {
-    alert("启动并注入失败: " + err);
+    alert("线程注入失败: " + err);
   } finally {
     isOperating.value = false;
   }
 };
 
-// 热更新当前正在运行的 ChatGPT 时区
-const handleInjectRunning = async () => {
-  if (!selectedTimezone.value) return;
+// 撤销 ChatGPT 进程的时区 Hook
+const handleRestoreThreadTimezone = async () => {
   isOperating.value = true;
   try {
-    const count = await invoke<number>("inject_chatgpt_timezone_cdp", {
-      timezoneId: selectedTimezone.value,
-    });
-    alert(`热更新成功！已向 ${count} 个渲染页面注入时区: ${selectedTimezone.value}`);
+    const msg = await invoke<string>("restore_chatgpt_thread_timezone");
+    alert(msg);
     await fetchStatus();
   } catch (err: any) {
-    alert("热更新失败: " + err);
+    alert("撤销失败: " + err);
   } finally {
     isOperating.value = false;
   }

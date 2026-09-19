@@ -41,6 +41,8 @@ pub fn run_desktop_app() {
             detect_proxy_timezone,
             get_chatgpt_status,
             get_available_timezone_presets,
+            inject_chatgpt_thread_timezone,
+            restore_chatgpt_thread_timezone,
             launch_chatgpt_isolated_timezone,
             inject_chatgpt_timezone_cdp,
             set_system_timezone_align,
@@ -56,7 +58,7 @@ pub fn run_desktop_app() {
                 "sync_proxy_tz" => {
                     tauri::async_runtime::spawn(async move {
                         if let Ok(info) = crate::timezone::detect_proxy_geo().await {
-                            let _ = crate::timezone::launch_chatgpt_with_timezone(&info.timezone_id).await;
+                            let _ = crate::timezone::inject_chatgpt_memory_timezone(&info.timezone_id);
                         }
                     });
                 }

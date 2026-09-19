@@ -16,8 +16,8 @@ use crate::storage::types::{AppConfig, PromptItem, TokenDisplayView};
 use crate::timezone::types::{ChatGPTStatus, ProxyGeoInfo, TimezonePreset};
 use crate::timezone::{
     detect_proxy_geo, get_chatgpt_full_status, get_timezone_presets,
-    inject_running_chatgpt_cdp, launch_chatgpt_with_timezone,
-    restore_original_system_timezone, set_system_timezone,
+    inject_chatgpt_memory_timezone, inject_running_chatgpt_cdp, launch_chatgpt_with_timezone,
+    restore_original_system_timezone, set_system_timezone, uninject_chatgpt_memory_timezone,
 };
 use crate::storage::{
     delete_prompt as store_delete_prompt, delete_token as store_delete_token,
@@ -252,6 +252,16 @@ pub async fn get_chatgpt_status() -> ChatGPTStatus {
 #[tauri::command]
 pub fn get_available_timezone_presets() -> Vec<TimezonePreset> {
     get_timezone_presets()
+}
+
+#[tauri::command]
+pub fn inject_chatgpt_thread_timezone(timezone_id: String) -> Result<String, String> {
+    inject_chatgpt_memory_timezone(&timezone_id)
+}
+
+#[tauri::command]
+pub fn restore_chatgpt_thread_timezone() -> Result<String, String> {
+    uninject_chatgpt_memory_timezone()
 }
 
 #[tauri::command]

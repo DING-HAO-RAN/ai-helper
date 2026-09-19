@@ -162,8 +162,8 @@ fn handle_timezone_subcommand(subargs: &[String]) {
                 }
             };
 
-            println!("正在以独立时区模式启动并注入 ChatGPT [目标时区: {}]...", tz);
-            match tauri::async_runtime::block_on(crate::timezone::launch_chatgpt_with_timezone(&tz)) {
+            println!("正在向 ChatGPT 进程与线程注入目标时区 [{} (不影响系统时区)]...", tz);
+            match crate::timezone::inject_chatgpt_memory_timezone(&tz) {
                 Ok(msg) => {
                     println!("✓ {}", msg);
                     let _ = std::io::stdout().flush();
