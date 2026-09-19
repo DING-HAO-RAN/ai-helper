@@ -4,7 +4,10 @@
     <div
       class="orb-body"
       :class="{ 'is-dragging': isDragging, 'copied-active': justCopied }"
-      @mousedown="handleMouseDown"
+      @pointerdown="handlePointerDown"
+      @pointermove="handlePointerMove"
+      @pointerup="handlePointerUp"
+      @pointercancel="handlePointerUp"
       @dblclick="handleDoubleClick"
       title="左键按住拖动 / 单击恢复控制台 / 右键快捷菜单"
     >
@@ -30,54 +33,68 @@ import { invoke } from "@tauri-apps/api/core";
 const isDragging = ref(false);
 const justCopied = ref(false);
 
-let startX = 0;
-let startY = 0;
-let dragged = false;
+let isPointerDown = false;
+let startScreenX = 0;
+let startScreenY = 0;
+let initialWinX = 0;
+let initialWinY = 0;
+let hasMoved = false;
 
-// 鼠标按下：左键准备拖动或单击判定
-const handleMouseDown = (e: MouseEvent) => {
-  if (e.button === 2) {
-    // 右键交由 contextmenu 处理
-    return;
+// 指针按下：开始追踪并捕获指针
+const handlePointerDown = async (e: PointerEvent) => {
+  if (e.button !== 0) return; // 只处理左键，右键交由 contextmenu
+
+  isPointerDown = true;
+  hasMoved = false;
+  startScreenX = e.screenX;
+  startScreenY = e.screenY;
+
+  try {
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+  } catch {}
+
+  try {
+    const [x, y] = await invoke<[number, number]>("get_window_position");
+    initialWinX = x;
+    initialWinY = y;
+  } catch (err) {
+    console.error("获取悬浮球位置失败:", err);
+  }
+};
+
+// 指针移动：在屏幕上平滑拖动悬浮球窗口
+const handlePointerMove = (e: PointerEvent) => {
+  if (!isPointerDown) return;
+  const dx = e.screenX - startScreenX;
+  const dy = e.screenY - startScreenY;
+
+  if (!hasMoved) {
+    if (Math.hypot(dx, dy) < 4) return;
+    hasMoved = true;
+    isDragging.value = true;
   }
 
-  if (e.button !== 0) return;
+  const targetX = initialWinX + dx;
+  const targetY = initialWinY + dy;
+  invoke("set_window_position", { x: targetX, y: targetY }).catch(() => {});
+};
 
-  startX = e.screenX;
-  startY = e.screenY;
-  dragged = false;
+// 指针释放：判断是轻点单击还是拖动停靠
+const handlePointerUp = (e: PointerEvent) => {
+  if (!isPointerDown) return;
+  isPointerDown = false;
+  isDragging.value = false;
 
-  const onMouseMove = (moveEvent: MouseEvent) => {
-    const dist = Math.hypot(moveEvent.screenX - startX, moveEvent.screenY - startY);
-    if (dist > 4) {
-      dragged = true;
-      isDragging.value = true;
-      // 移动超过 4px，立即调用 Rust 原生窗口拖拽
-      invoke("drag_floating_ball").catch((err) => {
-        console.error("拖拽失败:", err);
-      });
-      cleanup();
-    }
-  };
+  try {
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+  } catch {}
 
-  const onMouseUp = () => {
-    cleanup();
-    isDragging.value = false;
-    // 如果没有发生位移，则判定为左键点击，唤醒主控制台
-    if (!dragged) {
-      invoke("restore_from_floating_ball").catch((err) => {
-        console.error("恢复主窗口失败:", err);
-      });
-    }
-  };
-
-  const cleanup = () => {
-    window.removeEventListener("mousemove", onMouseMove);
-    window.removeEventListener("mouseup", onMouseUp);
-  };
-
-  window.addEventListener("mousemove", onMouseMove);
-  window.addEventListener("mouseup", onMouseUp);
+  // 若没有发生明显拖拽位移，判定为单击，立即唤醒恢复主控制台
+  if (!hasMoved) {
+    invoke("restore_from_floating_ball").catch((err) => {
+      console.error("恢复主窗口失败:", err);
+    });
+  }
 };
 
 // 双击事件
@@ -87,7 +104,7 @@ const handleDoubleClick = () => {
   });
 };
 
-// 右键呼出原生上下文菜单
+// 右键呼出原生系统级上下文菜单
 const handleRightClick = async () => {
   try {
     await invoke("show_floating_context_menu");
@@ -109,6 +126,7 @@ const handleRightClick = async () => {
   position: relative;
   user-select: none;
   -webkit-user-select: none;
+  touch-action: none;
 }
 
 /* 赛博悬浮球主体 */
@@ -126,6 +144,7 @@ const handleRightClick = async () => {
   box-shadow: 0 0 16px rgba(0, 240, 255, 0.5), inset 0 0 10px rgba(0, 240, 255, 0.35);
   border: 1.5px solid rgba(0, 240, 255, 0.8);
   transition: transform 0.15s ease, box-shadow 0.2s ease;
+  touch-action: none;
 }
 
 .orb-body:hover {

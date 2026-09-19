@@ -1,7 +1,12 @@
 <template>
-  <header class="titlebar" data-tauri-drag-region @dblclick="handleToggleMaximize">
+  <header
+    class="titlebar"
+    data-tauri-drag-region="deep"
+    @mousedown="handleTitlebarMouseDown"
+    @dblclick="handleToggleMaximize"
+  >
     <!-- 左侧 Logo 与系统指示灯 -->
-    <div class="brand-zone" data-tauri-drag-region>
+    <div class="brand-zone" data-tauri-drag-region="deep">
       <div class="logo-box">
         <img src="/cyber-core.png" alt="Logo" class="logo-img" />
       </div>
@@ -9,16 +14,16 @@
         <span class="pulse-dot"></span>
         <span class="status-text">SYS_ONLINE</span>
       </div>
-      <div class="app-title" data-tauri-drag-region>
+      <div class="app-title" data-tauri-drag-region="deep">
         AI HELPER <span class="title-tag">MATRIX v1.0</span>
       </div>
     </div>
 
     <!-- 中间拖拽扩展区 -->
-    <div class="drag-spacer" data-tauri-drag-region></div>
+    <div class="drag-spacer" data-tauri-drag-region="deep"></div>
 
     <!-- 右侧窗口控制按钮 -->
-    <div class="window-controls">
+    <div class="window-controls" data-tauri-drag-region="false" @mousedown.stop>
       <button class="win-btn win-min" title="最小化" @click="handleMinimize">
         <Minus :size="14" />
       </button>
@@ -38,6 +43,15 @@ import { invoke } from "@tauri-apps/api/core";
 import { Minus, Square, X } from "lucide-vue-next";
 
 const isMaximized = ref(false);
+
+// 鼠标左键按下标题栏任何空白处时触发 Windows 原生窗口拖拽
+const handleTitlebarMouseDown = (e: MouseEvent) => {
+  if (e.button === 0 && !(e.target as HTMLElement).closest(".window-controls")) {
+    invoke("drag_window").catch((err) => {
+      console.error("拖拽窗口失败:", err);
+    });
+  }
+};
 
 const handleMinimize = async () => {
   try {
@@ -77,6 +91,7 @@ const handleCloseToOrb = async () => {
   padding: 0 10px;
   user-select: none;
   -webkit-user-select: none;
+  cursor: default;
 }
 
 .brand-zone {

@@ -255,10 +255,31 @@ pub fn is_main_maximized(window: WebviewWindow) -> Result<bool, String> {
     window.is_maximized().map_err(|e| e.to_string())
 }
 
-/// 悬浮球原生拖动命令：调用 Windows 原生拖拽，完全摆脱前端权限限制
+/// 窗口原生拖动命令：调用 Windows 原生拖拽，完全摆脱前端权限限制
+#[tauri::command]
+pub fn drag_window(window: WebviewWindow) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+/// 兼容保留悬浮球原生拖动命令别名
 #[tauri::command]
 pub fn drag_floating_ball(window: WebviewWindow) -> Result<(), String> {
     window.start_dragging().map_err(|e| e.to_string())
+}
+
+/// 获取当前窗口在屏幕上的绝对坐标 (x, y)
+#[tauri::command]
+pub fn get_window_position(window: WebviewWindow) -> Result<(i32, i32), String> {
+    let pos = window.outer_position().map_err(|e| e.to_string())?;
+    Ok((pos.x, pos.y))
+}
+
+/// 设置当前窗口在屏幕上的绝对物理坐标 (x, y)
+#[tauri::command]
+pub fn set_window_position(window: WebviewWindow, x: i32, y: i32) -> Result<(), String> {
+    window
+        .set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }))
+        .map_err(|e| e.to_string())
 }
 
 /// 悬浮球原生右键上下文菜单弹出命令
