@@ -12,9 +12,10 @@ use serde::{Deserialize, Serialize};
 use walkdir::{DirEntry, WalkDir};
 
 use self::injector::check_has_guide;
+use crate::storage::get_agent_index_path;
 
 /// 扫描出的 AGENT.md 记录项
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct AgentFileInfo {
     pub path: String,
     pub filename: String,
@@ -23,6 +24,74 @@ pub struct AgentFileInfo {
     pub preview: String,
     pub has_token_guide: bool,
     pub tool_or_project: String,
+}
+
+/// AGENT.md 本地持久化文件索引缓存模型
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AgentIndexCache {
+    pub updated_at: String,
+    pub total_count: usize,
+    pub agents: Vec<AgentFileInfo>,
+}
+
+impl Default for AgentIndexCache {
+    fn default() -> Self {
+        Self {
+            updated_at: String::new(),
+            total_count: 0,
+            agents: Vec::new(),
+        }
+    }
+}
+
+/// 从程序所在文件夹的 agent_index.json 读取文件索引缓存
+pub fn load_agent_index() -> AgentIndexCache {
+    let path = get_agent_index_path();
+    if !path.exists() {
+        return AgentIndexCache::default();
+    }
+
+    match fs::read_to_string(&path) {
+        Ok(content) => {
+            if content.trim().is_empty() {
+                return AgentIndexCache::default();
+            }
+            serde_json::from_str::<AgentIndexCache>(&content).unwrap_or_default()
+        }
+        Err(_) => AgentIndexCache::default(),
+    }
+}
+
+/// 保存文件索引至 agent_index.json
+pub fn save_agent_index(agents: &[AgentFileInfo]) -> Result<AgentIndexCache, String> {
+    let now = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let cache = AgentIndexCache {
+        updated_at: now,
+        total_count: agents.len(),
+        agents: agents.to_vec(),
+    };
+
+    let json = serde_json::to_string_pretty(&cache)
+        .map_err(|e| format!("序列化索引失败: {}", e))?;
+    fs::write(get_agent_index_path(), json)
+        .map_err(|e| format!("写入 agent_index.json 失败: {}", e))?;
+
+    Ok(cache)
+}
+
+/// 同步更新索引中指定文件的 has_token_guide 状态
+pub fn mark_agents_guide_status(paths: &[String], has_guide: bool) {
+    let mut cache = load_agent_index();
+    let mut modified = false;
+    for agent in &mut cache.agents {
+        if paths.contains(&agent.path) {
+            agent.has_token_guide = has_guide;
+            modified = true;
+        }
+    }
+    if modified {
+        let _ = save_agent_index(&cache.agents);
+    }
 }
 
 /// 获取 Windows 上所有有效的硬盘驱动器根目录（例如 C:\, D:\ 等）
@@ -238,6 +307,16 @@ pub fn scan_all_agents() -> Vec<AgentFileInfo> {
     // 优先按更新时间降序排序
     results.sort_by(|a, b| b.modified_at.cmp(&a.modified_at));
     results
+}
+
+/// 执行全盘扫描并同步更新程序所在目录的 agent_index.json 索引文件
+pub fn scan_and_cache_all_agents() -> AgentIndexCache {
+    let list = scan_all_agents();
+    save_agent_index(&list).unwrap_or(AgentIndexCache {
+        updated_at: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
+        total_count: list.len(),
+        agents: list,
+    })
 }
 
 #[cfg(test)]

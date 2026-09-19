@@ -19,3 +19,9 @@ pnpm-debug.log*
 Thumbs.db
 *.tmp
 *.exe
+
+# Local App Data & Config
+config.json
+storage.json
+agent_index.json
+*.bak

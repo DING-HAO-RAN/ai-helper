@@ -1,5 +1,6 @@
-//! 本地数据持久化存储模块
-//! 负责将提示词和加密后的 GitHub 凭据持久化存储在用户本地的配置文件中。
+//! 本地数据持久化存储与便携化配置模块
+//! 优先在程序可执行文件所在目录下创建并管理设置配置文件 (config.json)、
+//! 核心加密数据文件 (storage.json) 与文件索引缓存 (agent_index.json)。
 
 pub mod types;
 
@@ -10,20 +11,120 @@ use chrono::Local;
 use uuid::Uuid;
 
 use crate::crypto::{decrypt_text, encrypt_text};
-use self::types::{AppData, GitHubTokenItem, PromptItem, TokenDisplayView};
+use self::types::{AppConfig, AppData, GitHubTokenItem, PromptItem, TokenDisplayView};
 
 static STORAGE_LOCK: Mutex<()> = Mutex::new(());
 
-/// 获取本地数据持久化文件的路径
-pub fn get_storage_path() -> PathBuf {
-    let base_dir = dirs::data_local_dir()
-        .or_else(dirs::config_dir)
-        .unwrap_or_else(|| PathBuf::from("."));
-    let app_dir = base_dir.join("AIHelper");
-    if !app_dir.exists() {
-        let _ = fs::create_dir_all(&app_dir);
+/// 获取程序所在文件夹根目录（优先使用当前运行可执行文件所在目录）
+pub fn get_app_dir() -> PathBuf {
+    if let Ok(exe_path) = std::env::current_exe() {
+        if let Some(parent) = exe_path.parent() {
+            return parent.to_path_buf();
+        }
     }
-    app_dir.join("storage.json")
+    std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
+}
+
+/// 获取本地数据持久化文件 (storage.json) 的路径
+pub fn get_storage_path() -> PathBuf {
+    get_app_dir().join("storage.json")
+}
+
+/// 获取系统设置配置文件 (config.json) 的路径
+pub fn get_config_path() -> PathBuf {
+    get_app_dir().join("config.json")
+}
+
+/// 获取 agent.md 本地索引缓存文件 (agent_index.json) 的路径
+pub fn get_agent_index_path() -> PathBuf {
+    get_app_dir().join("agent_index.json")
+}
+
+/// 初始化工作空间文件：在程序启动时自动在程序所在文件夹创建设置配置文件与数据缓存文件
+pub fn init_app_workspace() {
+    let _guard = STORAGE_LOCK.lock().unwrap();
+    let app_dir = get_app_dir();
+    let _ = fs::create_dir_all(&app_dir);
+
+    // 1. 初始化 config.json
+    let config_path = get_config_path();
+    if !config_path.exists() {
+        let default_config = AppConfig::default();
+        if let Ok(json) = serde_json::to_string_pretty(&default_config) {
+            let _ = fs::write(&config_path, json);
+        }
+    }
+
+    // 2. 初始化 storage.json
+    let storage_path = get_storage_path();
+    if !storage_path.exists() {
+        // 尝试从旧的 AppData 目录自动迁移历史数据
+        let migrated = try_migrate_legacy_storage(&storage_path);
+        if !migrated {
+            let default_data = AppData::default();
+            if let Ok(json) = serde_json::to_string_pretty(&default_data) {
+                let _ = fs::write(&storage_path, json);
+            }
+        }
+    }
+
+    // 3. 初始化 agent_index.json
+    let index_path = get_agent_index_path();
+    if !index_path.exists() {
+        let empty_index = serde_json::json!({
+            "updated_at": "",
+            "total_count": 0,
+            "agents": []
+        });
+        if let Ok(json) = serde_json::to_string_pretty(&empty_index) {
+            let _ = fs::write(&index_path, json);
+        }
+    }
+}
+
+/// 尝试从旧 AppData 目录迁移数据至程序所在目录
+fn try_migrate_legacy_storage(target_path: &PathBuf) -> bool {
+    let legacy_dir = dirs::data_local_dir()
+        .or_else(dirs::config_dir)
+        .map(|d| d.join("AIHelper").join("storage.json"));
+
+    if let Some(old_path) = legacy_dir {
+        if old_path.exists() && old_path != *target_path {
+            if let Ok(content) = fs::read_to_string(&old_path) {
+                if !content.trim().is_empty() {
+                    let _ = fs::write(target_path, content);
+                    return true;
+                }
+            }
+        }
+    }
+    false
+}
+
+/// 读取系统设置配置
+pub fn load_config() -> AppConfig {
+    let _guard = STORAGE_LOCK.lock().unwrap();
+    let path = get_config_path();
+    if !path.exists() {
+        return AppConfig::default();
+    }
+
+    match fs::read_to_string(&path) {
+        Ok(content) => serde_json::from_str::<AppConfig>(&content).unwrap_or_default(),
+        Err(_) => AppConfig::default(),
+    }
+}
+
+/// 保存系统设置配置
+pub fn save_config(config: &AppConfig) -> Result<(), String> {
+    let _guard = STORAGE_LOCK.lock().unwrap();
+    let path = get_config_path();
+    let mut updated = config.clone();
+    updated.updated_at = Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+    let json = serde_json::to_string_pretty(&updated)
+        .map_err(|e| format!("序列化设置失败: {}", e))?;
+    fs::write(&path, json).map_err(|e| format!("写入配置文件失败: {}", e))?;
+    Ok(())
 }
 
 /// 从本地文件中读取数据，若不存在或损坏则返回默认数据，并在损坏时安全备份
@@ -266,4 +367,29 @@ pub fn set_default_token(id: &str) -> Result<(), String> {
     }
     save_data(&data)?;
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_workspace_paths_and_config() {
+        let app_dir = get_app_dir();
+        assert!(app_dir.exists());
+
+        init_app_workspace();
+
+        let cfg_path = get_config_path();
+        assert!(cfg_path.exists());
+
+        let storage_path = get_storage_path();
+        assert!(storage_path.exists());
+
+        let index_path = get_agent_index_path();
+        assert!(index_path.exists());
+
+        let cfg = load_config();
+        assert!(cfg.auto_minimize_to_orb);
+    }
 }

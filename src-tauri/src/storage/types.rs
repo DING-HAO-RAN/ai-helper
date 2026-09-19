@@ -47,3 +47,33 @@ pub struct AppData {
     #[serde(default)]
     pub tokens: Vec<GitHubTokenItem>,
 }
+
+/// 系统设置配置数据项
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AppConfig {
+    pub auto_minimize_to_orb: bool,
+    pub default_token_alias: String,
+    pub scan_exclude_dirs: Vec<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        let now = chrono::Local::now().format("%Y-%m-%d %H:%M:%S").to_string();
+        Self {
+            auto_minimize_to_orb: true,
+            default_token_alias: "default".to_string(),
+            scan_exclude_dirs: vec![
+                "node_modules".to_string(),
+                ".git".to_string(),
+                "Windows".to_string(),
+                "target".to_string(),
+                "dist".to_string(),
+                "AppData".to_string(),
+            ],
+            created_at: now.clone(),
+            updated_at: now,
+        }
+    }
+}

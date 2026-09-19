@@ -1,16 +1,22 @@
 //! 前后端通信 Tauri Commands 模块
-//! 将所有业务能力（提示词、令牌、DPAPI、Agent扫描与注入、窗口生命周期）封装为 Tauri RPC 命令供前端调用。
+//! 将所有业务能力（提示词、令牌、DPAPI、Agent扫描与索引缓存、设置配置、窗口生命周期）封装为 Tauri RPC 命令供前端调用。
 
 use std::fs;
 use std::path::Path;
 use serde::{Deserialize, Serialize};
+use tauri::menu::{ContextMenu, Menu, MenuItem, PredefinedMenuItem};
 use tauri::{AppHandle, Manager, WebviewWindow};
+
 use crate::scanner::injector::{inject_all_files, InjectSummary};
-use crate::scanner::{scan_all_agents, AgentFileInfo};
-use crate::storage::types::{PromptItem, TokenDisplayView};
+use crate::scanner::{
+    load_agent_index, mark_agents_guide_status, scan_and_cache_all_agents,
+    AgentFileInfo, AgentIndexCache,
+};
+use crate::storage::types::{AppConfig, PromptItem, TokenDisplayView};
 use crate::storage::{
     delete_prompt as store_delete_prompt, delete_token as store_delete_token,
-    get_storage_path, get_token_secret as store_get_secret, list_token_views, load_data,
+    get_config_path, get_agent_index_path, get_storage_path, get_token_secret as store_get_secret,
+    list_token_views, load_config, load_data, save_config as store_save_config,
     save_token as store_save_token, set_default_token as store_set_default,
     upsert_prompt as store_upsert_prompt,
 };
@@ -21,6 +27,36 @@ pub struct GitHubUserInfo {
     pub name: Option<String>,
     pub avatar_url: Option<String>,
     pub public_repos: Option<u64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoragePathsInfo {
+    pub app_dir: String,
+    pub config_path: String,
+    pub storage_path: String,
+    pub agent_index_path: String,
+}
+
+// ================= 系统设置与存储路径相关命令 =================
+
+#[tauri::command]
+pub fn get_storage_paths_info() -> StoragePathsInfo {
+    StoragePathsInfo {
+        app_dir: crate::storage::get_app_dir().to_string_lossy().to_string(),
+        config_path: get_config_path().to_string_lossy().to_string(),
+        storage_path: get_storage_path().to_string_lossy().to_string(),
+        agent_index_path: get_agent_index_path().to_string_lossy().to_string(),
+    }
+}
+
+#[tauri::command]
+pub fn get_app_config() -> AppConfig {
+    load_config()
+}
+
+#[tauri::command]
+pub fn save_app_config(config: AppConfig) -> Result<(), String> {
+    store_save_config(&config)
 }
 
 // ================= 提示词相关命令 =================
@@ -120,19 +156,43 @@ pub async fn test_github_token(token: String) -> Result<GitHubUserInfo, String> 
     })
 }
 
-// ================= AGENT.md 相关命令 =================
+// ================= AGENT.md 与索引缓存相关命令 =================
 
+/// 获取本地持久化索引缓存（秒级响应，无需每次重新扫描）
 #[tauri::command]
-pub async fn scan_agents() -> Vec<AgentFileInfo> {
-    // 使用 Tauri 异步任务池在后台执行全盘扫描，避免阻塞 GUI 主线程
-    tauri::async_runtime::spawn_blocking(scan_all_agents)
+pub fn get_cached_agent_index() -> AgentIndexCache {
+    load_agent_index()
+}
+
+/// 重新全盘扫描并更新本地 agent_index.json 索引文件
+#[tauri::command]
+pub async fn scan_and_refresh_agents() -> AgentIndexCache {
+    tauri::async_runtime::spawn_blocking(scan_and_cache_all_agents)
         .await
         .unwrap_or_default()
 }
 
 #[tauri::command]
+pub async fn scan_agents() -> Vec<AgentFileInfo> {
+    let cache = scan_and_refresh_agents().await;
+    cache.agents
+}
+
+#[tauri::command]
 pub fn inject_agents(paths: Vec<String>) -> InjectSummary {
-    inject_all_files(&paths)
+    let summary = inject_all_files(&paths);
+    let success_paths: Vec<String> = summary
+        .details
+        .iter()
+        .filter(|d| d.success)
+        .map(|d| d.path.clone())
+        .collect();
+
+    if !success_paths.is_empty() {
+        mark_agents_guide_status(&success_paths, true);
+    }
+
+    summary
 }
 
 #[tauri::command]
@@ -171,7 +231,7 @@ pub fn save_file_content(path: String, content: String) -> Result<(), String> {
     fs::write(&path, content).map_err(|e| format!("保存文件失败: {}", e))
 }
 
-// ================= 窗口与生命周期相关命令 =================
+// ================= 窗口与悬浮球生命周期命令 =================
 
 #[tauri::command]
 pub fn minimize_main_window(window: WebviewWindow) -> Result<(), String> {
@@ -195,6 +255,50 @@ pub fn is_main_maximized(window: WebviewWindow) -> Result<bool, String> {
     window.is_maximized().map_err(|e| e.to_string())
 }
 
+/// 悬浮球原生拖动命令：调用 Windows 原生拖拽，完全摆脱前端权限限制
+#[tauri::command]
+pub fn drag_floating_ball(window: WebviewWindow) -> Result<(), String> {
+    window.start_dragging().map_err(|e| e.to_string())
+}
+
+/// 悬浮球原生右键上下文菜单弹出命令
+#[tauri::command]
+pub fn show_floating_context_menu(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let copy_item = MenuItem::with_id(
+        &app,
+        "copy_default_token",
+        "📋 复制默认 GitHub 令牌",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let restore_item = MenuItem::with_id(
+        &app,
+        "restore_main",
+        "🖥️ 打开主控制台",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let separator = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
+
+    let exit_item = MenuItem::with_id(
+        &app,
+        "exit_app",
+        "🚪 彻底退出程序",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let menu = Menu::with_items(&app, &[&copy_item, &restore_item, &separator, &exit_item])
+        .map_err(|e| e.to_string())?;
+
+    menu.popup(window.as_ref().window().clone()).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn close_to_floating_ball(app: AppHandle) -> Result<(), String> {
     if let Some(main_win) = app.get_webview_window("main") {
@@ -205,7 +309,7 @@ pub fn close_to_floating_ball(app: AppHandle) -> Result<(), String> {
         // 定位在屏幕右侧居中偏上
         if let Ok(Some(monitor)) = ball_win.primary_monitor() {
             let screen_size = monitor.size();
-            let x = (screen_size.width as i32) - 80;
+            let x = (screen_size.width as i32) - 90;
             let y = 160;
             let _ = ball_win.set_position(tauri::Position::Physical(tauri::PhysicalPosition { x, y }));
         }

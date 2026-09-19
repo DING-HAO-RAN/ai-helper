@@ -4,7 +4,7 @@
       <div class="modal-header">
         <div class="header-left">
           <Settings class="header-icon" :size="18" />
-          <span class="modal-title">SYSTEM SETTINGS // 系统设置</span>
+          <span class="modal-title">SYSTEM SETTINGS // 本地配置与便携式存储</span>
         </div>
         <button class="close-btn" @click="$emit('close')">
           <X :size="16" />
@@ -12,14 +12,28 @@
       </div>
 
       <div class="modal-body">
-        <!-- 存储路径 -->
+        <!-- 便携式存储文件位置 -->
         <div class="setting-item">
           <div class="item-header">
-            <span class="item-title">本地数据加密存储路径</span>
-            <span class="cyber-badge cyber-badge-cyan">DPAPI PROTECTED</span>
+            <span class="item-title">程序所在目录 (Portable Workdir)</span>
+            <button class="cyber-btn mini-open-btn" @click="handleOpenDir(pathsInfo.app_dir)">
+              <FolderOpen :size="12" />
+              打开程序文件夹
+            </button>
           </div>
-          <div class="path-display">
-            <code>{{ storagePath || "正在读取存储路径..." }}</code>
+          <div class="paths-grid">
+            <div class="path-row">
+              <span class="path-tag">配置 config.json</span>
+              <code>{{ pathsInfo.config_path || "加载中..." }}</code>
+            </div>
+            <div class="path-row">
+              <span class="path-tag">数据 storage.json</span>
+              <code>{{ pathsInfo.storage_path || "加载中..." }}</code>
+            </div>
+            <div class="path-row">
+              <span class="path-tag">索引 agent_index.json</span>
+              <code>{{ pathsInfo.agent_index_path || "加载中..." }}</code>
+            </div>
           </div>
         </div>
 
@@ -30,7 +44,7 @@
             <span class="cyber-badge cyber-badge-green">READY</span>
           </div>
           <p class="item-desc">
-            无需启动图形界面，终端与 AI Agent 可直接调用以下命令毫秒级读取解密后的 GitHub 令牌：
+            无需启动图形界面，终端脚本与外部 AI Agent 可直接调用以下命令毫秒级读取解密后的 GitHub 令牌：
           </p>
           <div class="code-box">
             <div class="code-row">
@@ -39,22 +53,23 @@
               <button class="copy-mini-btn" @click="copyText('ai-helper token get')">复制</button>
             </div>
             <div class="code-row">
-              <span class="prompt">$env</span>
+              <span class="prompt">PS:</span>
               <span class="cmd">$env:GITHUB_TOKEN = (ai-helper token get)</span>
               <button class="copy-mini-btn" @click="copyText('$env:GITHUB_TOKEN = (ai-helper token get)')">复制</button>
             </div>
           </div>
         </div>
 
-        <!-- 悬浮球说明 -->
+        <!-- 悬浮球快捷交互提示 -->
         <div class="setting-item">
           <div class="item-header">
             <span class="item-title">悬浮球交互提示</span>
+            <span class="cyber-badge cyber-badge-cyan">WINDOWS 原生集成</span>
           </div>
           <ul class="tips-list">
-            <li>关闭主窗口时自动缩小为桌面赛博悬浮球，支持全屏自由拖拽。</li>
-            <li>鼠标左键点击悬浮球：瞬间还原主控制台。</li>
-            <li>鼠标右键点击悬浮球：呼出赛博快捷菜单，可一键复制默认令牌或彻底退出。</li>
+            <li><b>左键按住拖动</b>：任意平滑拖移至桌面任意边缘位置停靠。</li>
+            <li><b>左键单击 / 双击</b>：瞬间唤醒主控制台窗口并自动前置置顶。</li>
+            <li><b>鼠标右键单击</b>：呼出系统原生快捷菜单，可快速复制默认 Token 或退出。</li>
           </ul>
         </div>
       </div>
@@ -75,7 +90,14 @@
 <script setup lang="ts">
 import { ref, onMounted, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { Settings, X, Power } from "lucide-vue-next";
+import { Settings, X, Power, FolderOpen } from "lucide-vue-next";
+
+interface StoragePathsInfo {
+  app_dir: string;
+  config_path: string;
+  storage_path: string;
+  agent_index_path: string;
+}
 
 const props = defineProps<{
   isOpen: boolean;
@@ -85,26 +107,40 @@ defineEmits<{
   (e: "close"): void;
 }>();
 
-const storagePath = ref("");
+const pathsInfo = ref<StoragePathsInfo>({
+  app_dir: "",
+  config_path: "",
+  storage_path: "",
+  agent_index_path: "",
+});
 
-const fetchStoragePath = async () => {
+const fetchPathsInfo = async () => {
   try {
-    storagePath.value = await invoke<string>("get_app_storage_location");
+    pathsInfo.value = await invoke<StoragePathsInfo>("get_storage_paths_info");
   } catch (err) {
-    storagePath.value = "读取失败";
+    console.error("读取路径失败:", err);
   }
 };
 
 watch(
   () => props.isOpen,
   (val) => {
-    if (val) fetchStoragePath();
+    if (val) fetchPathsInfo();
   }
 );
 
 onMounted(() => {
-  if (props.isOpen) fetchStoragePath();
+  if (props.isOpen) fetchPathsInfo();
 });
+
+const handleOpenDir = async (dir: string) => {
+  if (!dir) return;
+  try {
+    await invoke("open_in_explorer", { path: dir });
+  } catch (err) {
+    alert("打开文件夹失败: " + err);
+  }
+};
 
 const copyText = (txt: string) => {
   navigator.clipboard.writeText(txt);
@@ -131,7 +167,7 @@ const handleExitApp = async () => {
 }
 
 .cyber-modal {
-  width: 540px;
+  width: 580px;
   background: rgba(14, 18, 30, 0.98);
   border: 1px solid rgba(0, 240, 255, 0.35);
   box-shadow: 0 0 25px rgba(0, 240, 255, 0.2);
@@ -180,7 +216,7 @@ const handleExitApp = async () => {
   padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .item-header {
@@ -196,20 +232,47 @@ const handleExitApp = async () => {
   color: #cbd5e1;
 }
 
-.path-display {
+.mini-open-btn {
+  font-size: 11px;
+  padding: 2px 8px;
+}
+
+.paths-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
   background: rgba(8, 11, 20, 0.9);
-  padding: 8px 12px;
+  padding: 8px 10px;
   border: 1px solid rgba(0, 240, 255, 0.1);
   border-radius: 4px;
-  font-size: 12px;
+}
+
+.path-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+}
+
+.path-tag {
   color: var(--cyber-neon-cyan);
-  word-break: break-all;
+  font-weight: 600;
+  width: 140px;
+  flex-shrink: 0;
+}
+
+.path-row code {
+  color: #94a3b8;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-family: 'Consolas', monospace;
 }
 
 .item-desc {
-  font-size: 12px;
+  font-size: 11px;
   color: #94a3b8;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   line-height: 1.5;
 }
 
@@ -220,14 +283,14 @@ const handleExitApp = async () => {
   padding: 8px 12px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 6px;
 }
 
 .code-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 12px;
+  font-size: 11px;
   font-family: 'Consolas', monospace;
 }
 
@@ -245,9 +308,9 @@ const handleExitApp = async () => {
   background: rgba(0, 240, 255, 0.1);
   border: 1px solid rgba(0, 240, 255, 0.3);
   color: var(--cyber-neon-cyan);
-  padding: 2px 8px;
+  padding: 1px 6px;
   border-radius: 3px;
-  font-size: 11px;
+  font-size: 10px;
   cursor: pointer;
 }
 
@@ -258,7 +321,7 @@ const handleExitApp = async () => {
 
 .tips-list {
   padding-left: 18px;
-  font-size: 12px;
+  font-size: 11px;
   color: #94a3b8;
   line-height: 1.6;
 }

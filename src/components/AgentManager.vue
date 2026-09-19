@@ -9,7 +9,7 @@
         </div>
         <div class="stats-row">
           <div class="stat-pill">
-            <span class="label">发现文件:</span>
+            <span class="label">已索引文件:</span>
             <span class="val">{{ agents.length }}</span>
           </div>
           <div class="stat-pill">
@@ -20,6 +20,11 @@
             <span class="label">未注入:</span>
             <span class="val-yellow">{{ unconfiguredCount }}</span>
           </div>
+          <div v-if="indexUpdatedAt" class="stat-pill index-time-pill">
+            <span class="cyber-badge cyber-badge-green">
+              ⚡ 本地索引生效中 ({{ indexUpdatedAt }})
+            </span>
+          </div>
         </div>
       </div>
 
@@ -27,11 +32,11 @@
         <button
           class="cyber-btn"
           :disabled="isScanning"
-          title="自动递归扫描电脑驱动器与 AI 工具目录"
-          @click="handleScanAgents"
+          title="全盘重新扫描驱动器并更新程序所在目录的 agent_index.json"
+          @click="handleRefreshScan"
         >
           <Radar :size="15" :class="{ 'spin-anim': isScanning }" />
-          <span>{{ isScanning ? "全盘扫描中..." : "全盘智能扫描" }}</span>
+          <span>{{ isScanning ? "全盘扫描中..." : "全盘扫描 / 更新索引" }}</span>
         </button>
 
         <button
@@ -240,9 +245,10 @@ import {
   X,
   Save,
 } from "lucide-vue-next";
-import type { AgentFileInfo, InjectSummary } from "../types/agent";
+import type { AgentFileInfo, AgentIndexCache, InjectSummary } from "../types/agent";
 
 const agents = ref<AgentFileInfo[]>([]);
+const indexUpdatedAt = ref("");
 const isScanning = ref(false);
 const isInjecting = ref(false);
 const searchKeyword = ref("");
@@ -280,12 +286,30 @@ const filteredAgents = computed(() => {
   );
 });
 
-// 全盘扫描
-const handleScanAgents = async () => {
+// 加载本地文件索引缓存（秒级响应，下次无需重复全盘搜索）
+const loadCachedIndexOrScan = async () => {
+  try {
+    const cache = await invoke<AgentIndexCache>("get_cached_agent_index");
+    if (cache && cache.agents && cache.agents.length > 0) {
+      agents.value = cache.agents;
+      indexUpdatedAt.value = cache.updated_at;
+      return;
+    }
+  } catch (err) {
+    console.error("读取本地 agent 索引失败:", err);
+  }
+
+  // 若本地尚无索引，则触发首次全盘扫描
+  await handleRefreshScan();
+};
+
+// 全盘重新扫描并更新本地索引缓存
+const handleRefreshScan = async () => {
   isScanning.value = true;
   try {
-    const res = await invoke<AgentFileInfo[]>("scan_agents");
-    agents.value = res;
+    const cache = await invoke<AgentIndexCache>("scan_and_refresh_agents");
+    agents.value = cache.agents;
+    indexUpdatedAt.value = cache.updated_at;
   } catch (err) {
     alert("扫描失败: " + err);
   } finally {
@@ -293,11 +317,8 @@ const handleScanAgents = async () => {
   }
 };
 
-// 页面挂载时如果为空可自动触发一次轻量扫描
 onMounted(() => {
-  if (agents.value.length === 0) {
-    handleScanAgents();
-  }
+  loadCachedIndexOrScan();
 });
 
 // 一键批量写入所有已扫描文件
@@ -321,7 +342,7 @@ const handleInjectAll = async () => {
       `批量写入完成！\n成功: ${summary.success} 个\n失败: ${summary.failed} 个\n所有文件已规范包含 CLI 令牌访问指引！`
     );
     // 重新刷新列表状态
-    await handleScanAgents();
+    await handleRefreshScan();
   } catch (err) {
     alert("批量写入失败: " + err);
   } finally {
@@ -386,7 +407,7 @@ const handleSaveFileContent = async () => {
     });
     alert("文件保存成功！");
     activeEditItem.value = null;
-    await handleScanAgents();
+    await handleRefreshScan();
   } catch (err) {
     alert("保存失败: " + err);
   }

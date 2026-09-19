@@ -8,6 +8,12 @@ export interface AgentFileInfo {
   tool_or_project: string;
 }
 
+export interface AgentIndexCache {
+  updated_at: string;
+  total_count: number;
+  agents: AgentFileInfo[];
+}
+
 export interface InjectSummary {
   total: number;
   success: number;

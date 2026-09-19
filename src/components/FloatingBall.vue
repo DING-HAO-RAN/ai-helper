@@ -1,10 +1,12 @@
 <template>
-  <div class="floating-orb-container" @contextmenu.prevent="handleContextMenu">
+  <div class="floating-orb-container" @contextmenu.prevent="handleRightClick">
     <!-- 赛博量子悬浮球核心主体 -->
     <div
       class="orb-body"
       :class="{ 'is-dragging': isDragging, 'copied-active': justCopied }"
       @mousedown="handleMouseDown"
+      @dblclick="handleDoubleClick"
+      title="左键按住拖动 / 单击恢复控制台 / 右键快捷菜单"
     >
       <!-- 外部动态旋转霓虹光圈 -->
       <div class="neon-ring"></div>
@@ -18,108 +20,54 @@
       <!-- 状态小绿灯 -->
       <div class="orb-dot"></div>
     </div>
-
-    <!-- 右键赛博朋克快捷菜单 -->
-    <div
-      v-if="showMenu"
-      class="cyber-context-menu cyber-card"
-      @click.stop
-    >
-      <div class="menu-header">
-        <span class="menu-title">AI HELPER // QUICK MENU</span>
-      </div>
-
-      <div class="menu-items">
-        <button class="menu-item" @click="handleCopyDefaultToken">
-          <Copy :size="14" class="menu-icon" />
-          <span>{{ justCopied ? "✓ 已复制默认令牌" : "复制默认 GitHub Token" }}</span>
-        </button>
-
-        <button class="menu-item" @click="handleRestoreMainWindow">
-          <Maximize2 :size="14" class="menu-icon" />
-          <span>打开主控制台</span>
-        </button>
-
-        <div class="menu-divider"></div>
-
-        <button class="menu-item menu-danger" @click="handleExitApp">
-          <Power :size="14" class="menu-icon" />
-          <span>彻底退出程序</span>
-        </button>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, watch } from "vue";
+import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
-import { LogicalSize, PhysicalPosition } from "@tauri-apps/api/dpi";
-import { Copy, Maximize2, Power } from "lucide-vue-next";
 
-const showMenu = ref(false);
 const isDragging = ref(false);
 const justCopied = ref(false);
 
 let startX = 0;
 let startY = 0;
-let dragOccurred = false;
-let originalPos: { x: number; y: number } | null = null;
+let dragged = false;
 
-// 动态适应菜单尺寸与防屏幕边缘裁剪补偿
-watch(showMenu, async (open) => {
-  const currentWin = getCurrentWebviewWindow();
-  try {
-    if (open) {
-      const pos = await currentWin.outerPosition();
-      originalPos = { x: pos.x, y: pos.y };
-      // 向左偏移展开，防止菜单超出右侧屏幕
-      await currentWin.setPosition(new PhysicalPosition(pos.x - 160, pos.y));
-      await currentWin.setSize(new LogicalSize(240, 240));
-    } else {
-      await currentWin.setSize(new LogicalSize(72, 72));
-      if (originalPos) {
-        await currentWin.setPosition(new PhysicalPosition(originalPos.x, originalPos.y));
-        originalPos = null;
-      }
-    }
-  } catch (e) {
-    console.error("调整悬浮球尺寸/位置失败:", e);
-  }
-});
-
-// 鼠标按下：准备拖动
-const handleMouseDown = async (e: MouseEvent) => {
+// 鼠标按下：左键准备拖动或单击判定
+const handleMouseDown = (e: MouseEvent) => {
   if (e.button === 2) {
-    // 右键由 contextmenu 处理
+    // 右键交由 contextmenu 处理
     return;
   }
 
+  if (e.button !== 0) return;
+
   startX = e.screenX;
   startY = e.screenY;
-  dragOccurred = false;
+  dragged = false;
 
-  const currentWin = getCurrentWebviewWindow();
-
-  // 监听移动与抬起
   const onMouseMove = (moveEvent: MouseEvent) => {
     const dist = Math.hypot(moveEvent.screenX - startX, moveEvent.screenY - startY);
-    if (dist > 5) {
-      dragOccurred = true;
+    if (dist > 4) {
+      dragged = true;
       isDragging.value = true;
-      showMenu.value = false;
-      currentWin.startDragging();
+      // 移动超过 4px，立即调用 Rust 原生窗口拖拽
+      invoke("drag_floating_ball").catch((err) => {
+        console.error("拖拽失败:", err);
+      });
       cleanup();
     }
   };
 
-  const onMouseUp = async () => {
+  const onMouseUp = () => {
     cleanup();
     isDragging.value = false;
-    // 如果没有发生拖拽，则判定为左键点击，唤醒主窗口
-    if (!dragOccurred) {
-      await handleRestoreMainWindow();
+    // 如果没有发生位移，则判定为左键点击，唤醒主控制台
+    if (!dragged) {
+      invoke("restore_from_floating_ball").catch((err) => {
+        console.error("恢复主窗口失败:", err);
+      });
     }
   };
 
@@ -132,57 +80,19 @@ const handleMouseDown = async (e: MouseEvent) => {
   window.addEventListener("mouseup", onMouseUp);
 };
 
-// 右键呼出快捷菜单
-const handleContextMenu = () => {
-  showMenu.value = !showMenu.value;
+// 双击事件
+const handleDoubleClick = () => {
+  invoke("restore_from_floating_ball").catch((err) => {
+    console.error("双击恢复主窗口失败:", err);
+  });
 };
 
-// 点击空白关闭菜单
-const handleWindowClick = () => {
-  if (showMenu.value) {
-    showMenu.value = false;
-  }
-};
-
-onMounted(() => {
-  window.addEventListener("click", handleWindowClick);
-});
-
-onUnmounted(() => {
-  window.removeEventListener("click", handleWindowClick);
-});
-
-// 唤醒主窗口
-const handleRestoreMainWindow = async () => {
-  showMenu.value = false;
+// 右键呼出原生上下文菜单
+const handleRightClick = async () => {
   try {
-    await invoke("restore_from_floating_ball");
+    await invoke("show_floating_context_menu");
   } catch (err) {
-    console.error("恢复主窗口失败:", err);
-  }
-};
-
-// 复制默认 GitHub 令牌
-const handleCopyDefaultToken = async () => {
-  try {
-    const plain = await invoke<string>("get_token_plain_text", { alias: null });
-    await navigator.clipboard.writeText(plain);
-    justCopied.value = true;
-    setTimeout(() => {
-      justCopied.value = false;
-      showMenu.value = false;
-    }, 1500);
-  } catch (err) {
-    alert("复制失败: " + err);
-  }
-};
-
-// 彻底退出程序
-const handleExitApp = async () => {
-  try {
-    await invoke("exit_app");
-  } catch (err) {
-    console.error("退出失败:", err);
+    console.error("弹出右键快捷菜单失败:", err);
   }
 };
 </script>
@@ -192,19 +102,19 @@ const handleExitApp = async () => {
   width: 100vw;
   height: 100vh;
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  justify-content: flex-start;
-  padding: 7px;
+  align-items: center;
+  justify-content: center;
   background: transparent;
-  overflow: visible;
+  overflow: hidden;
   position: relative;
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 /* 赛博悬浮球主体 */
 .orb-body {
-  width: 56px;
-  height: 56px;
+  width: 58px;
+  height: 58px;
   border-radius: 50%;
   position: relative;
   display: flex;
@@ -212,22 +122,27 @@ const handleExitApp = async () => {
   justify-content: center;
   cursor: grab;
   user-select: none;
-  background: radial-gradient(circle at 35% 35%, #18223c, #060912 80%);
-  box-shadow: 0 0 16px rgba(0, 240, 255, 0.45), inset 0 0 10px rgba(0, 240, 255, 0.3);
-  border: 1.5px solid rgba(0, 240, 255, 0.7);
+  background: radial-gradient(circle at 35% 35%, #1a233d, #060912 85%);
+  box-shadow: 0 0 16px rgba(0, 240, 255, 0.5), inset 0 0 10px rgba(0, 240, 255, 0.35);
+  border: 1.5px solid rgba(0, 240, 255, 0.8);
   transition: transform 0.15s ease, box-shadow 0.2s ease;
+}
+
+.orb-body:hover {
+  box-shadow: 0 0 22px rgba(0, 240, 255, 0.75), inset 0 0 12px rgba(0, 240, 255, 0.5);
+  border-color: #00f0ff;
 }
 
 .orb-body:active,
 .orb-body.is-dragging {
   cursor: grabbing;
-  transform: scale(1.06);
-  box-shadow: 0 0 24px rgba(0, 240, 255, 0.8), inset 0 0 14px rgba(0, 240, 255, 0.6);
+  transform: scale(1.05);
+  box-shadow: 0 0 26px rgba(0, 240, 255, 0.9), inset 0 0 14px rgba(0, 240, 255, 0.7);
 }
 
 .orb-body.copied-active {
   border-color: var(--cyber-neon-green);
-  box-shadow: 0 0 24px rgba(0, 255, 157, 0.8);
+  box-shadow: 0 0 24px rgba(0, 255, 157, 0.85);
 }
 
 /* 霓虹动态旋转光圈 */
@@ -268,7 +183,7 @@ const handleExitApp = async () => {
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  background: rgba(0, 240, 255, 0.1);
+  background: rgba(0, 240, 255, 0.12);
   box-shadow: 0 0 10px rgba(0, 240, 255, 0.5);
   pointer-events: none;
 }
@@ -282,7 +197,7 @@ const handleExitApp = async () => {
 
 .orb-dot {
   position: absolute;
-  top: 4px;
+  top: 3px;
   right: 6px;
   width: 7px;
   height: 7px;
@@ -290,81 +205,5 @@ const handleExitApp = async () => {
   background: var(--cyber-neon-green);
   box-shadow: 0 0 8px var(--cyber-neon-green);
   pointer-events: none;
-}
-
-/* 右键上下文菜单 */
-.cyber-context-menu {
-  position: absolute;
-  top: 68px;
-  right: 10px;
-  width: 215px;
-  background: rgba(12, 16, 28, 0.98);
-  border: 1px solid rgba(0, 240, 255, 0.4);
-  box-shadow: 0 0 20px rgba(0, 240, 255, 0.3);
-  border-radius: 6px;
-  padding: 6px 0;
-  z-index: 10000;
-}
-
-.menu-header {
-  padding: 4px 12px 6px;
-  border-bottom: 1px solid rgba(0, 240, 255, 0.15);
-}
-
-.menu-title {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--cyber-neon-cyan);
-  letter-spacing: 0.5px;
-}
-
-.menu-items {
-  display: flex;
-  flex-direction: column;
-  padding: 4px;
-}
-
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  background: transparent;
-  border: none;
-  color: #cbd5e1;
-  font-size: 12px;
-  font-weight: 600;
-  border-radius: 4px;
-  cursor: pointer;
-  text-align: left;
-  transition: all 0.15s ease;
-}
-
-.menu-item:hover {
-  background: rgba(0, 240, 255, 0.12);
-  color: #fff;
-}
-
-.menu-icon {
-  color: var(--cyber-neon-cyan);
-}
-
-.menu-divider {
-  height: 1px;
-  background: rgba(255, 255, 255, 0.08);
-  margin: 4px 6px;
-}
-
-.menu-item.menu-danger {
-  color: var(--cyber-neon-pink);
-}
-
-.menu-item.menu-danger:hover {
-  background: rgba(255, 0, 85, 0.2);
-  color: #fff;
-}
-
-.menu-item.menu-danger .menu-icon {
-  color: var(--cyber-neon-pink);
 }
 </style>
