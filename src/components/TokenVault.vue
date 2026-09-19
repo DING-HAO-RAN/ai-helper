@@ -227,6 +227,7 @@ import {
   AlertCircle,
 } from "lucide-vue-next";
 import type { TokenDisplayView, GitHubUserInfo } from "../types/token";
+import { cyberAlert, cyberConfirm, cyberToast } from "../utils/dialog";
 
 const tokens = ref<TokenDisplayView[]>([]);
 const newAlias = ref("default");
@@ -259,7 +260,7 @@ const handlePasteToken = async () => {
     const text = await navigator.clipboard.readText();
     if (text) newToken.value = text.trim();
   } catch {
-    alert("无法读取剪贴板，请直接粘贴");
+    cyberAlert("无法读取系统剪贴板，请直接在输入框使用 Ctrl+V 粘贴", "提示", "warning");
   }
 };
 
@@ -279,9 +280,10 @@ const handleSaveToken = async () => {
     newNote.value = "";
     newAlias.value = "default";
     newIsDefault.value = false;
+    cyberToast("令牌已安全加密入库", "success");
     await loadTokens();
   } catch (err) {
-    alert("保存令牌失败: " + err);
+    cyberAlert("保存令牌失败: " + err, "错误", "error");
   }
 };
 
@@ -294,7 +296,7 @@ const toggleReveal = async (alias: string) => {
       const plain = await invoke<string>("get_token_plain_text", { alias });
       revealedTokens.value[alias] = plain;
     } catch (err) {
-      alert("解密失败: " + err);
+      cyberAlert("解密失败: " + err, "解密受限", "error");
     }
   }
 };
@@ -305,11 +307,12 @@ const handleCopySecret = async (alias: string) => {
     const plain = await invoke<string>("get_token_plain_text", { alias });
     await navigator.clipboard.writeText(plain);
     copiedAlias.value = alias;
+    cyberToast(`已复制 "${alias}" 令牌明文至剪贴板`, "success");
     setTimeout(() => {
       if (copiedAlias.value === alias) copiedAlias.value = null;
     }, 2000);
   } catch (err) {
-    alert("复制失败: " + err);
+    cyberAlert("复制失败: " + err, "错误", "error");
   }
 };
 
@@ -317,22 +320,25 @@ const handleCopySecret = async (alias: string) => {
 const handleSetDefault = async (id: string) => {
   try {
     await invoke("set_default_token", { id });
+    cyberToast("已切换默认活动令牌", "success");
     await loadTokens();
   } catch (err) {
-    alert("设置默认失败: " + err);
+    cyberAlert("设置默认失败: " + err, "错误", "error");
   }
 };
 
 // 删除令牌
 const handleDeleteToken = async (item: TokenDisplayView) => {
-  if (confirm(`确定要从本地安全保险库中删除令牌 "${item.alias}" 吗？`)) {
+  const confirmed = await cyberConfirm(`确定要从本地安全保险库中删除令牌 "${item.alias}" 吗？删除后 CLI 访问将无法再调用此凭据。`, "删除令牌确认");
+  if (confirmed) {
     try {
       await invoke("delete_token", { id: item.id });
       delete revealedTokens.value[item.alias];
       delete testResults.value[item.id];
+      cyberToast("令牌已从保险库中移除", "info");
       await loadTokens();
     } catch (err) {
-      alert("删除失败: " + err);
+      cyberAlert("删除失败: " + err, "错误", "error");
     }
   }
 };
@@ -347,11 +353,13 @@ const handleTestConnection = async (item: TokenDisplayView) => {
       success: true,
       message: `连通成功! 用户: ${user.login} (${user.name || "无昵称"}) | 公开仓库数: ${user.public_repos || 0}`,
     };
+    cyberToast(`GitHub 连通性测试通过 [${user.login}]`, "success");
   } catch (err: any) {
     testResults.value[item.id] = {
       success: false,
       message: `验证失败: ${err.toString()}`,
     };
+    cyberToast("GitHub 令牌验证失败", "error");
   } finally {
     testingId.value = null;
   }
@@ -360,7 +368,7 @@ const handleTestConnection = async (item: TokenDisplayView) => {
 // 复制 CLI 命令
 const copyCli = (cmd: string) => {
   navigator.clipboard.writeText(cmd);
-  alert("命令已复制至剪贴板");
+  cyberToast("命令已复制至剪贴板", "success");
 };
 </script>
 

@@ -1,3 +1,4 @@
+pub mod antigravity;
 pub mod app;
 pub mod cli;
 pub mod commands;
@@ -5,6 +6,18 @@ pub mod crypto;
 pub mod scanner;
 pub mod storage;
 pub mod timezone;
+
+/// 创建静默无窗口的子进程命令，杜绝 Windows 下任何控制台黑框闪现
+pub fn create_hidden_command(program: &str) -> std::process::Command {
+    let mut cmd = std::process::Command::new(program);
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        cmd.creation_flags(CREATE_NO_WINDOW);
+    }
+    cmd
+}
 
 #[cfg(test)]
 mod tests {

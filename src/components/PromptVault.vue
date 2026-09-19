@@ -165,6 +165,7 @@ import {
   Check,
   FileText,
 } from "lucide-vue-next";
+import { cyberAlert, cyberConfirm, cyberToast } from "../utils/dialog";
 import type { PromptItem } from "../types/prompt";
 
 const prompts = ref<PromptItem[]>([]);
@@ -212,7 +213,7 @@ const handlePasteFromClipboard = async () => {
       }
     }
   } catch (err) {
-    alert("无法访问系统剪贴板，请使用 Ctrl+V 粘贴");
+    cyberAlert("无法访问系统剪贴板，请使用 Ctrl+V 快捷键进行粘贴", "剪贴板访问受限", "warning");
   }
 };
 
@@ -250,9 +251,10 @@ const handleSavePrompt = async () => {
     });
 
     handleClearEditor();
+    cyberToast("提示词已成功存入宝库", "success");
     await loadPrompts();
   } catch (err) {
-    alert("保存提示词失败: " + err);
+    cyberAlert("保存提示词失败: " + err, "保存失败", "error");
   }
 };
 
@@ -272,27 +274,30 @@ const handleCopy = async (item: PromptItem) => {
   try {
     await navigator.clipboard.writeText(item.content);
     copiedId.value = item.id;
+    cyberToast(`已复制 "${item.title}" 至剪贴板`, "success");
     setTimeout(() => {
       if (copiedId.value === item.id) {
         copiedId.value = null;
       }
     }, 2000);
   } catch (err) {
-    alert("复制失败: " + err);
+    cyberAlert("复制失败: " + err, "错误", "error");
   }
 };
 
 // 删除提示词
 const handleDelete = async (item: PromptItem) => {
-  if (confirm(`确定要删除提示词 "${item.title}" 吗？`)) {
+  const confirmed = await cyberConfirm(`确定要从本地提示词宝库中删除 "${item.title}" 吗？此操作不可逆。`, "删除提示词确认");
+  if (confirmed) {
     try {
       await invoke("delete_prompt", { id: item.id });
       if (editingId.value === item.id) {
         handleClearEditor();
       }
+      cyberToast("提示词已删除", "info");
       await loadPrompts();
     } catch (err) {
-      alert("删除失败: " + err);
+      cyberAlert("删除失败: " + err, "删除失败", "error");
     }
   }
 };

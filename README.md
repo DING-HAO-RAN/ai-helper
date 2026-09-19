@@ -79,6 +79,25 @@
   ai-helper tz restore
   ```
 
+### 7. 🚀 Antigravity 代理智能体检与一键修复 (Antigravity Proxy Doctor)
+- **故障根因治理**：Google Antigravity 内部由 Go 语言与 Node.js 守护进程驱动，在 Windows 系统下严格忽略系统设置的 WinINet 系统代理，必须通过用户环境变量 `HTTP_PROXY` / `HTTPS_PROXY` 与 `--proxy-server` 参数通信。
+- **一键全自动修复**：
+  - 自动扫描本地 Mihomo/Clash/V2Ray 活跃监听端口（如 `http://127.0.0.1:7897`）；
+  - 自动将代理写入用户注册表 `HKCU\Environment` 并广播 `WM_SETTINGCHANGE` 消息，即时生效无需重启系统；
+  - 自动修复桌面快捷方式（`Antigravity.lnk`），追加 `--proxy-server` 启动参数；
+  - 提供 Google CloudCode 官方服务器网络连通性实时测速与一键强制代理拉起。
+- **命令行 (CLI) 极速调用**：
+  ```powershell
+  # 体检当前环境与代理配置
+  ai-helper agy status
+
+  # 一键全自动修复 Antigravity 代理
+  ai-helper agy fix
+
+  # 测试代理连接 Google CloudCode API
+  ai-helper agy test
+  ```
+
 ---
 
 ## 🛠️ 技术架构

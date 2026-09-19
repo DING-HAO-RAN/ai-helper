@@ -9,7 +9,6 @@ pub mod types;
 
 use std::fs;
 use std::path::Path;
-use std::process::Command;
 use std::sync::Mutex;
 use std::time::Duration;
 use serde_json::Value;
@@ -199,7 +198,7 @@ pub async fn detect_proxy_geo() -> Result<ProxyGeoInfo, String> {
 pub fn get_system_current_timezone() -> String {
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("tzutil").arg("/g").output();
+        let output = crate::create_hidden_command("tzutil").arg("/g").output();
         if let Ok(out) = output {
             let res = String::from_utf8_lossy(&out.stdout).trim().to_string();
             if !res.is_empty() {
@@ -227,7 +226,7 @@ pub fn set_system_timezone(windows_tz_name: &str) -> Result<(), String> {
             *orig = Some(current);
         }
 
-        let status = Command::new("tzutil")
+        let status = crate::create_hidden_command("tzutil")
             .args(["/s", windows_tz_name])
             .status()
             .map_err(|e| format!("执行 tzutil 失败: {}", e))?;
@@ -261,7 +260,7 @@ pub fn detect_chatgpt_executable_path() -> Option<String> {
     #[cfg(target_os = "windows")]
     {
         // 1. 通过 PowerShell 检索 AppxPackage OpenAI.Codex
-        let output = Command::new("powershell")
+        let output = crate::create_hidden_command("powershell")
             .args([
                 "-NoProfile",
                 "-Command",
@@ -303,7 +302,7 @@ pub fn detect_chatgpt_executable_path() -> Option<String> {
 pub fn get_running_chatgpt_pids() -> Vec<u32> {
     #[cfg(target_os = "windows")]
     {
-        let output = Command::new("powershell")
+        let output = crate::create_hidden_command("powershell")
             .args([
                 "-NoProfile",
                 "-Command",
@@ -352,7 +351,7 @@ pub fn inject_chatgpt_memory_timezone(tz_identifier: &str) -> Result<String, Str
         if let Some(exe_path) = detect_chatgpt_executable_path() {
             #[cfg(target_os = "windows")]
             {
-                let _ = Command::new(&exe_path).spawn();
+                let _ = crate::create_hidden_command(&exe_path).spawn();
                 std::thread::sleep(Duration::from_millis(1500));
             }
         } else {
@@ -430,7 +429,7 @@ pub async fn launch_chatgpt_with_timezone(timezone_id: &str) -> Result<String, S
     if !pids.is_empty() {
         #[cfg(target_os = "windows")]
         {
-            let _ = Command::new("powershell")
+            let _ = crate::create_hidden_command("powershell")
                 .args([
                     "-NoProfile",
                     "-Command",
@@ -444,7 +443,7 @@ pub async fn launch_chatgpt_with_timezone(timezone_id: &str) -> Result<String, S
     // 2. 带 --remote-debugging-port=9222 参数启动 ChatGPT
     #[cfg(target_os = "windows")]
     {
-        let _ = Command::new(&chatgpt_path)
+        let _ = crate::create_hidden_command(&chatgpt_path)
             .args(["--remote-debugging-port=9222"])
             .spawn()
             .map_err(|e| format!("启动 ChatGPT 失败: {}", e))?;

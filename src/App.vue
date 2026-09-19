@@ -17,6 +17,7 @@
         <TokenVault v-else-if="activeTab === 'tokens'" />
         <AgentManager v-else-if="activeTab === 'agents'" />
         <TimezoneManager v-else-if="activeTab === 'timezone'" />
+        <AntigravityRepair v-else-if="activeTab === 'antigravity'" />
       </main>
     </div>
 
@@ -24,6 +25,9 @@
       :isOpen="isSettingsOpen"
       @close="isSettingsOpen = false"
     />
+
+    <!-- 全局统一赛博朋克模态提示与确认框 -->
+    <CyberDialog />
   </div>
 </template>
 
@@ -32,10 +36,12 @@ import { ref, onMounted } from "vue";
 import TitleBar from "./components/TitleBar.vue";
 import Sidebar from "./components/Sidebar.vue";
 import SettingsModal from "./components/SettingsModal.vue";
+import CyberDialog from "./components/CyberDialog.vue";
 import PromptVault from "./components/PromptVault.vue";
 import TokenVault from "./components/TokenVault.vue";
 import AgentManager from "./components/AgentManager.vue";
 import TimezoneManager from "./components/TimezoneManager.vue";
+import AntigravityRepair from "./components/AntigravityRepair.vue";
 import FloatingBall from "./components/FloatingBall.vue";
 
 const isFloatingOrb = ref(false);

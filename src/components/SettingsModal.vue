@@ -96,6 +96,7 @@
 import { ref, onMounted, watch } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 import { Settings, X, Power, FolderOpen } from "lucide-vue-next";
+import { cyberAlert, cyberConfirm, cyberToast } from "../utils/dialog";
 
 interface StoragePathsInfo {
   app_dir: string;
@@ -143,17 +144,18 @@ const handleOpenDir = async (dir: string) => {
   try {
     await invoke("open_in_explorer", { path: dir });
   } catch (err) {
-    alert("打开文件夹失败: " + err);
+    cyberAlert("打开文件夹失败: " + err, "打开失败", "error");
   }
 };
 
 const copyText = (txt: string) => {
   navigator.clipboard.writeText(txt);
-  alert("命令已复制至剪贴板");
+  cyberToast("命令已复制至剪贴板", "success");
 };
 
 const handleExitApp = async () => {
-  if (confirm("确定要完全退出 AI Helper 吗？")) {
+  const confirmed = await cyberConfirm("确定要完全退出 AI Helper 吗？退出后后台服务和悬浮球将被关闭。", "彻底退出程序确认");
+  if (confirmed) {
     await invoke("exit_app");
   }
 };

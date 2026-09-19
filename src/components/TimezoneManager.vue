@@ -203,6 +203,7 @@ import {
   RotateCcw,
 } from "lucide-vue-next";
 import type { ProxyGeoInfo, ChatGPTStatus, TimezonePreset } from "../types/timezone";
+import { cyberAlert, cyberToast } from "../utils/dialog";
 
 const proxyInfo = ref<ProxyGeoInfo | null>(null);
 const chatgptStatus = ref<ChatGPTStatus | null>(null);
@@ -219,8 +220,9 @@ const handleDetectProxy = async () => {
     proxyInfo.value = info;
     // 默认自动将选定时区设为代理 IP 所在地的时区
     selectedTimezone.value = info.timezone_id;
+    cyberToast(`已侦测到代理出口节点: ${info.country} (${info.city})`, "success");
   } catch (err: any) {
-    alert("侦测代理时区失败: " + err);
+    cyberAlert("侦测代理时区失败: " + err, "网络探测失败", "warning");
   } finally {
     isDetecting.value = false;
   }
@@ -257,10 +259,10 @@ const handleInjectThreadTimezone = async () => {
     const msg = await invoke<string>("inject_chatgpt_thread_timezone", {
       timezoneId: selectedTimezone.value,
     });
-    alert(msg);
+    await cyberAlert(msg, "时区注入成功", "success");
     await fetchStatus();
   } catch (err: any) {
-    alert("线程注入失败: " + err);
+    cyberAlert("线程注入失败: " + err, "注入失败", "error");
   } finally {
     isOperating.value = false;
   }
@@ -271,10 +273,10 @@ const handleRestoreThreadTimezone = async () => {
   isOperating.value = true;
   try {
     const msg = await invoke<string>("restore_chatgpt_thread_timezone");
-    alert(msg);
+    cyberToast(msg, "info");
     await fetchStatus();
   } catch (err: any) {
-    alert("撤销失败: " + err);
+    cyberAlert("撤销失败: " + err, "撤销错误", "error");
   } finally {
     isOperating.value = false;
   }
@@ -283,17 +285,17 @@ const handleRestoreThreadTimezone = async () => {
 // 临时对齐系统时区
 const handleAlignSystemTz = async () => {
   if (!proxyInfo.value?.windows_tz_name) {
-    alert("尚未获取到代理对应的 Windows 时区名称");
+    cyberAlert("尚未获取到代理对应的 Windows 时区名称，请先执行侦测", "提示", "warning");
     return;
   }
   try {
     await invoke("set_system_timezone_align", {
       windowsTz: proxyInfo.value.windows_tz_name,
     });
-    alert(`系统时区已临时对齐为代理时区: ${proxyInfo.value.windows_tz_name}`);
+    cyberToast(`系统时区已临时对齐为代理时区: ${proxyInfo.value.windows_tz_name}`, "success");
     await fetchStatus();
   } catch (err: any) {
-    alert("对齐系统时区失败: " + err);
+    cyberAlert("对齐系统时区失败: " + err, "系统时区对齐失败", "error");
   }
 };
 
@@ -301,10 +303,10 @@ const handleAlignSystemTz = async () => {
 const handleRestoreSystemTz = async () => {
   try {
     const orig = await invoke<string>("restore_system_timezone");
-    alert(`系统时区已恢复为: ${orig}`);
+    cyberToast(`系统时区已恢复为: ${orig}`, "success");
     await fetchStatus();
   } catch (err: any) {
-    alert("恢复系统时区失败: " + err);
+    cyberAlert("恢复系统时区失败: " + err, "恢复失败", "error");
   }
 };
 </script>

@@ -56,6 +56,19 @@
             <span class="nav-sub">PROXY // CHATGPT</span>
           </div>
         </button>
+
+        <button
+          class="nav-item"
+          :class="{ active: currentTab === 'antigravity' }"
+          @click="$emit('update:currentTab', 'antigravity')"
+        >
+          <div class="nav-glow-bar"></div>
+          <Wrench :size="18" class="nav-icon" />
+          <div class="nav-meta">
+            <span class="nav-title">Antigravity 修复</span>
+            <span class="nav-sub">PROXY DOCTOR</span>
+          </div>
+        </button>
       </nav>
     </div>
 
@@ -87,7 +100,7 @@
 </template>
 
 <script setup lang="ts">
-import { Sparkles, KeyRound, Bot, Globe, Settings } from "lucide-vue-next";
+import { Sparkles, KeyRound, Bot, Globe, Wrench, Settings } from "lucide-vue-next";
 
 defineProps<{
   currentTab: string;

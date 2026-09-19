@@ -246,6 +246,7 @@ import {
   Save,
 } from "lucide-vue-next";
 import type { AgentFileInfo, AgentIndexCache, InjectSummary } from "../types/agent";
+import { cyberAlert, cyberConfirm, cyberToast } from "../utils/dialog";
 
 const agents = ref<AgentFileInfo[]>([]);
 const indexUpdatedAt = ref("");
@@ -310,8 +311,9 @@ const handleRefreshScan = async () => {
     const cache = await invoke<AgentIndexCache>("scan_and_refresh_agents");
     agents.value = cache.agents;
     indexUpdatedAt.value = cache.updated_at;
+    cyberToast(`全盘扫描完毕，已索引 ${cache.total_count} 个 AGENT.md`, "success");
   } catch (err) {
-    alert("扫描失败: " + err);
+    cyberAlert("扫描失败: " + err, "扫描错误", "error");
   } finally {
     isScanning.value = false;
   }
@@ -326,11 +328,11 @@ const handleInjectAll = async () => {
   if (agents.value.length === 0) return;
 
   const count = agents.value.length;
-  if (
-    !confirm(
-      `确定要将 GitHub 访问凭据使用说明写入这 ${count} 个 AGENT.md 文件中吗？系统将自动使用防重标记块，安全无害。`
-    )
-  ) {
+  const confirmed = await cyberConfirm(
+    `确定要将 GitHub 访问凭据使用说明写入这 ${count} 个 AGENT.md 文件中吗？系统将自动使用专属防重标记块，安全可靠。`,
+    "批量写入安全确认"
+  );
+  if (!confirmed) {
     return;
   }
 
@@ -338,13 +340,15 @@ const handleInjectAll = async () => {
   try {
     const paths = agents.value.map((a) => a.path);
     const summary = await invoke<InjectSummary>("inject_agents", { paths });
-    alert(
-      `批量写入完成！\n成功: ${summary.success} 个\n失败: ${summary.failed} 个\n所有文件已规范包含 CLI 令牌访问指引！`
+    await cyberAlert(
+      `批量写入完成！\n成功: ${summary.success} 个\n失败: ${summary.failed} 个\n所有文件已规范包含 CLI 令牌访问指引！`,
+      "批量写入完成",
+      "success"
     );
     // 重新刷新列表状态
     await handleRefreshScan();
   } catch (err) {
-    alert("批量写入失败: " + err);
+    cyberAlert("批量写入失败: " + err, "错误", "error");
   } finally {
     isInjecting.value = false;
   }
@@ -358,12 +362,12 @@ const handleInjectSingle = async (item: AgentFileInfo) => {
     });
     if (summary.success > 0) {
       item.has_token_guide = true;
-      alert(`已成功将 GitHub 凭据指引写入:\n${item.path}`);
+      cyberToast(`已成功将凭据指引写入: ${item.filename}`, "success");
     } else {
-      alert("写入失败: " + (summary.details[0]?.message || "未知错误"));
+      cyberAlert("写入失败: " + (summary.details[0]?.message || "未知错误"), "写入失败", "error");
     }
   } catch (err) {
-    alert("写入失败: " + err);
+    cyberAlert("写入失败: " + err, "错误", "error");
   }
 };
 
@@ -372,7 +376,7 @@ const handleOpenFolder = async (path: string) => {
   try {
     await invoke("open_in_explorer", { path });
   } catch (err) {
-    alert("打开文件夹失败: " + err);
+    cyberAlert("打开文件夹失败: " + err, "错误", "error");
   }
 };
 
@@ -383,7 +387,7 @@ const handleViewEdit = async (item: AgentFileInfo) => {
     const content = await invoke<string>("read_file_content", { path: item.path });
     editFileContent.value = content;
   } catch (err) {
-    alert("读取文件内容失败: " + err);
+    cyberAlert("读取文件内容失败: " + err, "读取错误", "error");
   }
 };
 
@@ -392,8 +396,9 @@ const handleInjectInModal = () => {
   const guideBlock = `\n<!-- AI-HELPER:GITHUB-CREDENTIALS-START -->\n## 🔑 GitHub Access Credentials (AI Helper Automated Guide)\nWhen you need to access private GitHub repositories or perform Git/API operations, you can dynamically retrieve the decrypted GitHub Token via:\n- **PowerShell**:\n  \`\`\`powershell\n  $env:GITHUB_TOKEN = (ai-helper token get)\n  \`\`\`\n- **Bash / Linux / Mac**:\n  \`\`\`bash\n  export GITHUB_TOKEN=$(ai-helper token get)\n  \`\`\`\n- **Direct Output**:\n  \`ai-helper token get\`\n<!-- AI-HELPER:GITHUB-CREDENTIALS-END -->\n`;
   if (!editFileContent.value.includes("<!-- AI-HELPER:GITHUB-CREDENTIALS-START -->")) {
     editFileContent.value = editFileContent.value.trimEnd() + "\n" + guideBlock;
+    cyberToast("已追加凭据使用指引块", "info");
   } else {
-    alert("该文件中已存在凭据指引标记块");
+    cyberAlert("该文件中已存在凭据指引标记块，保存时将自动保持更新", "提示", "info");
   }
 };
 
@@ -405,11 +410,11 @@ const handleSaveFileContent = async () => {
       path: activeEditItem.value.path,
       content: editFileContent.value,
     });
-    alert("文件保存成功！");
+    cyberToast("文件保存成功！", "success");
     activeEditItem.value = null;
     await handleRefreshScan();
   } catch (err) {
-    alert("保存失败: " + err);
+    cyberAlert("保存失败: " + err, "保存错误", "error");
   }
 };
 

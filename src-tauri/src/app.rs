@@ -47,6 +47,11 @@ pub fn run_desktop_app() {
             inject_chatgpt_timezone_cdp,
             set_system_timezone_align,
             restore_system_timezone,
+            diagnose_antigravity_status,
+            fix_antigravity_proxy_action,
+            clear_antigravity_proxy_action,
+            launch_antigravity_action,
+            test_antigravity_google_api,
             close_to_floating_ball,
             restore_from_floating_ball,
             exit_app,
@@ -65,12 +70,14 @@ pub fn run_desktop_app() {
                 "restore_sys_tz" => {
                     let _ = crate::timezone::restore_original_system_timezone();
                 }
+                "fix_antigravity_proxy" => {
+                    let _ = crate::antigravity::fix_antigravity_proxy(None);
+                }
                 "copy_default_token" => {
                     if let Ok(token) = get_token_secret(None) {
                         #[cfg(target_os = "windows")]
                         {
-                            use std::process::Command;
-                            let _ = Command::new("powershell")
+                            let _ = crate::create_hidden_command("powershell")
                                 .args(["-NoProfile", "-Command", &format!("Set-Clipboard -Value '{}'", token)])
                                 .spawn();
                         }

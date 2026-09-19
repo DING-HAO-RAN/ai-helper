@@ -14,6 +14,11 @@ use crate::scanner::{
 };
 use crate::storage::types::{AppConfig, PromptItem, TokenDisplayView};
 use crate::timezone::types::{ChatGPTStatus, ProxyGeoInfo, TimezonePreset};
+use crate::antigravity::types::{AntigravityDiagnostic, AntigravityFixResult, GoogleApiTestResult};
+use crate::antigravity::{
+    clear_antigravity_proxy, diagnose_antigravity, fix_antigravity_proxy,
+    launch_antigravity_with_proxy, test_google_api,
+};
 use crate::timezone::{
     detect_proxy_geo, get_chatgpt_full_status, get_timezone_presets,
     inject_chatgpt_memory_timezone, inject_running_chatgpt_cdp, launch_chatgpt_with_timezone,
@@ -208,8 +213,8 @@ pub fn open_in_explorer(path: String) -> Result<(), String> {
     #[cfg(target_os = "windows")]
     {
         if p.is_file() {
-            // 在 Windows 资源管理器中直接定位并高亮选中该文件
-            let res = std::process::Command::new("explorer.exe")
+            // 在 Windows 资源管理器中直接定位并高亮选中该文件（静默无黑框）
+            let res = crate::create_hidden_command("explorer.exe")
                 .arg(format!("/select,{}", path))
                 .spawn();
             if res.is_ok() {
@@ -282,6 +287,33 @@ pub fn set_system_timezone_align(windows_tz: String) -> Result<(), String> {
 #[tauri::command]
 pub fn restore_system_timezone() -> Result<String, String> {
     restore_original_system_timezone()
+}
+
+// ================= Antigravity 代理诊断与修复相关命令 =================
+
+#[tauri::command]
+pub fn diagnose_antigravity_status() -> AntigravityDiagnostic {
+    diagnose_antigravity()
+}
+
+#[tauri::command]
+pub fn fix_antigravity_proxy_action(custom_proxy: Option<String>) -> Result<AntigravityFixResult, String> {
+    fix_antigravity_proxy(custom_proxy)
+}
+
+#[tauri::command]
+pub fn clear_antigravity_proxy_action() -> Result<String, String> {
+    clear_antigravity_proxy()
+}
+
+#[tauri::command]
+pub fn launch_antigravity_action(custom_proxy: Option<String>) -> Result<String, String> {
+    launch_antigravity_with_proxy(custom_proxy)
+}
+
+#[tauri::command]
+pub async fn test_antigravity_google_api(custom_proxy: Option<String>) -> Result<GoogleApiTestResult, String> {
+    test_google_api(custom_proxy).await
 }
 
 // ================= 窗口与悬浮球生命周期命令 =================
@@ -386,12 +418,22 @@ pub fn show_floating_context_menu(app: AppHandle, window: WebviewWindow) -> Resu
     )
     .map_err(|e| e.to_string())?;
 
+    let fix_agy_item = MenuItem::with_id(
+        &app,
+        "fix_antigravity_proxy",
+        "🚀 一键修复 Antigravity 代理",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| e.to_string())?;
+
     let menu = Menu::with_items(
         &app,
         &[
             &sync_tz_item,
             &restore_tz_item,
             &sep1,
+            &fix_agy_item,
             &copy_item,
             &restore_item,
             &sep2,
