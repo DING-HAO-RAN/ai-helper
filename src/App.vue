@@ -16,6 +16,7 @@
         <PromptVault v-if="activeTab === 'prompts'" />
         <TokenVault v-else-if="activeTab === 'tokens'" />
         <AgentManager v-else-if="activeTab === 'agents'" />
+        <TimezoneManager v-else-if="activeTab === 'timezone'" />
       </main>
     </div>
 
@@ -34,6 +35,7 @@ import SettingsModal from "./components/SettingsModal.vue";
 import PromptVault from "./components/PromptVault.vue";
 import TokenVault from "./components/TokenVault.vue";
 import AgentManager from "./components/AgentManager.vue";
+import TimezoneManager from "./components/TimezoneManager.vue";
 import FloatingBall from "./components/FloatingBall.vue";
 
 const isFloatingOrb = ref(false);

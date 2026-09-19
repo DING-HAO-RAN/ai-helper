@@ -43,6 +43,19 @@
             <span class="nav-sub">SCAN & INJECT</span>
           </div>
         </button>
+
+        <button
+          class="nav-item"
+          :class="{ active: currentTab === 'timezone' }"
+          @click="$emit('update:currentTab', 'timezone')"
+        >
+          <div class="nav-glow-bar"></div>
+          <Globe :size="18" class="nav-icon" />
+          <div class="nav-meta">
+            <span class="nav-title">Codex 时区</span>
+            <span class="nav-sub">PROXY // CHATGPT</span>
+          </div>
+        </button>
       </nav>
     </div>
 
@@ -74,7 +87,7 @@
 </template>
 
 <script setup lang="ts">
-import { Sparkles, KeyRound, Bot, Settings } from "lucide-vue-next";
+import { Sparkles, KeyRound, Bot, Globe, Settings } from "lucide-vue-next";
 
 defineProps<{
   currentTab: string;

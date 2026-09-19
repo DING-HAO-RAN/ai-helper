@@ -38,6 +38,13 @@ pub fn run_desktop_app() {
             get_window_position,
             set_window_position,
             show_floating_context_menu,
+            detect_proxy_timezone,
+            get_chatgpt_status,
+            get_available_timezone_presets,
+            launch_chatgpt_isolated_timezone,
+            inject_chatgpt_timezone_cdp,
+            set_system_timezone_align,
+            restore_system_timezone,
             close_to_floating_ball,
             restore_from_floating_ball,
             exit_app,
@@ -46,6 +53,16 @@ pub fn run_desktop_app() {
         .on_menu_event(|app, event| {
             // 处理悬浮球原生右键菜单触发的事件
             match event.id().as_ref() {
+                "sync_proxy_tz" => {
+                    tauri::async_runtime::spawn(async move {
+                        if let Ok(info) = crate::timezone::detect_proxy_geo().await {
+                            let _ = crate::timezone::launch_chatgpt_with_timezone(&info.timezone_id).await;
+                        }
+                    });
+                }
+                "restore_sys_tz" => {
+                    let _ = crate::timezone::restore_original_system_timezone();
+                }
                 "copy_default_token" => {
                     if let Ok(token) = get_token_secret(None) {
                         #[cfg(target_os = "windows")]

@@ -13,6 +13,12 @@ use crate::scanner::{
     AgentFileInfo, AgentIndexCache,
 };
 use crate::storage::types::{AppConfig, PromptItem, TokenDisplayView};
+use crate::timezone::types::{ChatGPTStatus, ProxyGeoInfo, TimezonePreset};
+use crate::timezone::{
+    detect_proxy_geo, get_chatgpt_full_status, get_timezone_presets,
+    inject_running_chatgpt_cdp, launch_chatgpt_with_timezone,
+    restore_original_system_timezone, set_system_timezone,
+};
 use crate::storage::{
     delete_prompt as store_delete_prompt, delete_token as store_delete_token,
     get_config_path, get_agent_index_path, get_storage_path, get_token_secret as store_get_secret,
@@ -231,6 +237,43 @@ pub fn save_file_content(path: String, content: String) -> Result<(), String> {
     fs::write(&path, content).map_err(|e| format!("保存文件失败: {}", e))
 }
 
+// ================= 时区管理与 ChatGPT/Codex 相关命令 =================
+
+#[tauri::command]
+pub async fn detect_proxy_timezone() -> Result<ProxyGeoInfo, String> {
+    detect_proxy_geo().await
+}
+
+#[tauri::command]
+pub async fn get_chatgpt_status() -> ChatGPTStatus {
+    get_chatgpt_full_status().await
+}
+
+#[tauri::command]
+pub fn get_available_timezone_presets() -> Vec<TimezonePreset> {
+    get_timezone_presets()
+}
+
+#[tauri::command]
+pub async fn launch_chatgpt_isolated_timezone(timezone_id: String) -> Result<String, String> {
+    launch_chatgpt_with_timezone(&timezone_id).await
+}
+
+#[tauri::command]
+pub async fn inject_chatgpt_timezone_cdp(timezone_id: String) -> Result<usize, String> {
+    inject_running_chatgpt_cdp(9222, &timezone_id).await
+}
+
+#[tauri::command]
+pub fn set_system_timezone_align(windows_tz: String) -> Result<(), String> {
+    set_system_timezone(&windows_tz)
+}
+
+#[tauri::command]
+pub fn restore_system_timezone() -> Result<String, String> {
+    restore_original_system_timezone()
+}
+
 // ================= 窗口与悬浮球生命周期命令 =================
 
 #[tauri::command]
@@ -285,6 +328,24 @@ pub fn set_window_position(window: WebviewWindow, x: i32, y: i32) -> Result<(), 
 /// 悬浮球原生右键上下文菜单弹出命令
 #[tauri::command]
 pub fn show_floating_context_menu(app: AppHandle, window: WebviewWindow) -> Result<(), String> {
+    let sync_tz_item = MenuItem::with_id(
+        &app,
+        "sync_proxy_tz",
+        "🌐 注入代理时区至 ChatGPT",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| e.to_string())?;
+
+    let restore_tz_item = MenuItem::with_id(
+        &app,
+        "restore_sys_tz",
+        "🔄 恢复系统默认时区",
+        true,
+        None::<&str>,
+    )
+    .map_err(|e| e.to_string())?;
+
     let copy_item = MenuItem::with_id(
         &app,
         "copy_default_token",
@@ -303,7 +364,8 @@ pub fn show_floating_context_menu(app: AppHandle, window: WebviewWindow) -> Resu
     )
     .map_err(|e| e.to_string())?;
 
-    let separator = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
+    let sep1 = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
+    let sep2 = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
 
     let exit_item = MenuItem::with_id(
         &app,
@@ -314,8 +376,19 @@ pub fn show_floating_context_menu(app: AppHandle, window: WebviewWindow) -> Resu
     )
     .map_err(|e| e.to_string())?;
 
-    let menu = Menu::with_items(&app, &[&copy_item, &restore_item, &separator, &exit_item])
-        .map_err(|e| e.to_string())?;
+    let menu = Menu::with_items(
+        &app,
+        &[
+            &sync_tz_item,
+            &restore_tz_item,
+            &sep1,
+            &copy_item,
+            &restore_item,
+            &sep2,
+            &exit_item,
+        ],
+    )
+    .map_err(|e| e.to_string())?;
 
     menu.popup(window.as_ref().window().clone()).map_err(|e| e.to_string())
 }

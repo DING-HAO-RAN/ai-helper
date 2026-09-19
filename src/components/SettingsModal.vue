@@ -57,6 +57,11 @@
               <span class="cmd">$env:GITHUB_TOKEN = (ai-helper token get)</span>
               <button class="copy-mini-btn" @click="copyText('$env:GITHUB_TOKEN = (ai-helper token get)')">复制</button>
             </div>
+            <div class="code-row">
+              <span class="prompt">TZ:</span>
+              <span class="cmd">ai-helper tz apply</span>
+              <button class="copy-mini-btn" @click="copyText('ai-helper tz apply')">复制</button>
+            </div>
           </div>
         </div>
 

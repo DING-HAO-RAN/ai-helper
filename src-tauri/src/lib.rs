@@ -4,6 +4,7 @@ pub mod commands;
 pub mod crypto;
 pub mod scanner;
 pub mod storage;
+pub mod timezone;
 
 #[cfg(test)]
 mod tests {

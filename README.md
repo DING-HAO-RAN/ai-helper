@@ -57,7 +57,27 @@
 - 点击关闭主窗口时自动隐入后台常驻待命，在屏幕边缘浮现 68×68 像素的置顶无边框半透明赛博悬浮球。
 - **自由拖拽**：鼠标按住悬浮球可在桌面上任意拖动停靠。
 - **左键单击**：瞬间平滑呼回主控制台窗口并自动前置聚焦。
-- **右键单击**：就地呼出赛博风格快捷菜单，支持【一键复制默认 GitHub Token】、【打开主控制台】、【彻底退出程序】。
+- **右键单击**：就地呼出系统原生赛博风格快捷菜单，支持【注入代理时区至 ChatGPT】、【恢复系统默认时区】、【一键复制默认 GitHub Token】、【打开主控制台】、【彻底退出程序】。
+
+### 6. 🌐 Codex / ChatGPT 时区伪装与代理时区同步 (Timezone Manager)
+- **代理 IP 归属智能侦测**：自动向网络出口探测接口获取当前代理 IP（如 `142.249.39.254`）、国家/城市（`United States / Los Angeles`）及对应标准 IANA 时区（`America/Los_Angeles` / `Pacific Standard Time`），并作为默认选中项。
+- **ChatGPT 独立时区注入（不影响系统全局时区）**：
+  - 基于 Chromium CDP 原生时区覆盖机制，单独将 ChatGPT (OpenAI.Codex) 内部网页、JavaScript 渲染引擎的 `Intl.DateTimeFormat()` 时区覆盖为代理节点时区；
+  - Windows 系统全局时区（中国标准时间）完全不受影响，彻底避免被 OpenAI 或 Cloudflare 识别出时区与代理 IP 不匹配。
+- **命令行 (CLI) 极速调用**：
+  ```powershell
+  # 1. 自动探测代理 IP 所在地与推荐时区
+  ai-helper tz detect
+
+  # 2. 查看当前 ChatGPT 运行与时区注入状态
+  ai-helper tz status
+
+  # 3. 单独将代理时区注入到 ChatGPT (不改系统时区)
+  ai-helper tz apply
+
+  # 4. 恢复 Windows 系统原始时区
+  ai-helper tz restore
+  ```
 
 ---
 
