@@ -297,7 +297,7 @@ fn handle_antigravity_subcommand(subargs: &[String]) {
         }
         "test" => {
             let proxy_arg = subargs.get(1).cloned();
-            console_println("正在测试通过代理连接 Google CloudCode API...");
+            console_println("正在测试通过代理连接 Google Gemini API...");
             match tauri::async_runtime::block_on(crate::antigravity::test_google_api(proxy_arg)) {
                 Ok(res) => {
                     if res.success {

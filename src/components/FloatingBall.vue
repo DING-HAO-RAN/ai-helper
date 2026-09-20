@@ -36,12 +36,10 @@ const justCopied = ref(false);
 let isPointerDown = false;
 let startScreenX = 0;
 let startScreenY = 0;
-let initialWinX = 0;
-let initialWinY = 0;
 let hasMoved = false;
 
-// 指针按下：开始追踪并捕获指针
-const handlePointerDown = async (e: PointerEvent) => {
+// 指针按下：仅追踪点击与拖动阈值，不再逐帧查询或设置窗口坐标。
+const handlePointerDown = (e: PointerEvent) => {
   if (e.button !== 0) return; // 只处理左键，右键交由 contextmenu
 
   isPointerDown = true;
@@ -52,31 +50,29 @@ const handlePointerDown = async (e: PointerEvent) => {
   try {
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
   } catch {}
-
-  try {
-    const [x, y] = await invoke<[number, number]>("get_window_position");
-    initialWinX = x;
-    initialWinY = y;
-  } catch (err) {
-    console.error("获取悬浮球位置失败:", err);
-  }
 };
 
-// 指针移动：在屏幕上平滑拖动悬浮球窗口
+// 超过阈值后只触发一次系统原生拖动，避免高频异步 RPC 堆积导致卡顿。
 const handlePointerMove = (e: PointerEvent) => {
-  if (!isPointerDown) return;
-  const dx = e.screenX - startScreenX;
-  const dy = e.screenY - startScreenY;
+  if (!isPointerDown || hasMoved) return;
 
-  if (!hasMoved) {
-    if (Math.hypot(dx, dy) < 4) return;
-    hasMoved = true;
-    isDragging.value = true;
-  }
+  const distance = Math.hypot(e.screenX - startScreenX, e.screenY - startScreenY);
+  if (distance < 4) return;
 
-  const targetX = initialWinX + dx;
-  const targetY = initialWinY + dy;
-  invoke("set_window_position", { x: targetX, y: targetY }).catch(() => {});
+  hasMoved = true;
+  isDragging.value = true;
+  try {
+    (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+  } catch {}
+
+  invoke("drag_floating_ball")
+    .catch((err) => {
+      console.error("拖拽悬浮球失败:", err);
+    })
+    .finally(() => {
+      isPointerDown = false;
+      isDragging.value = false;
+    });
 };
 
 // 指针释放：判断是轻点单击还是拖动停靠

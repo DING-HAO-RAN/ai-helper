@@ -15,6 +15,37 @@ use windows_sys::Win32::System::Registry::{
 
 use self::types::{AntigravityDiagnostic, AntigravityFixResult, GoogleApiTestResult};
 
+const PROXY_ENVIRONMENT_NAMES: [&str; 6] = [
+    "HTTP_PROXY",
+    "HTTPS_PROXY",
+    "ALL_PROXY",
+    "http_proxy",
+    "https_proxy",
+    "all_proxy",
+];
+const NO_PROXY_ENVIRONMENT_NAMES: [&str; 2] = ["NO_PROXY", "no_proxy"];
+const NO_PROXY_VALUE: &str = "localhost,127.0.0.1,::1,local.home";
+const NODE_USE_ENV_PROXY: &str = "NODE_USE_ENV_PROXY";
+
+/// 生成 Antigravity 及其派生 Node 插件需要继承的完整代理环境。
+fn plugin_proxy_environment(proxy_target: &str) -> Vec<(&'static str, String)> {
+    let mut variables = PROXY_ENVIRONMENT_NAMES
+        .iter()
+        .map(|name| (*name, proxy_target.to_string()))
+        .collect::<Vec<_>>();
+    variables.extend(
+        NO_PROXY_ENVIRONMENT_NAMES
+            .iter()
+            .map(|name| (*name, NO_PROXY_VALUE.to_string())),
+    );
+    variables.push((NODE_USE_ENV_PROXY, "1".to_string()));
+    variables
+}
+
+fn is_google_api_success(status: reqwest::StatusCode) -> bool {
+    status.is_success()
+}
+
 /// 检测 Antigravity.exe 的实际安装路径
 pub fn detect_antigravity_path() -> Option<String> {
     // 1. 默认用户安装目录
@@ -448,21 +479,20 @@ pub fn fix_antigravity_proxy(custom_proxy: Option<String>) -> Result<Antigravity
     // 1. 写入用户注册表 HKCU\Environment
     #[cfg(target_os = "windows")]
     {
-        let r1 = set_reg_hkcu_string("Environment", "HTTP_PROXY", &proxy_target);
-        let r2 = set_reg_hkcu_string("Environment", "HTTPS_PROXY", &proxy_target);
-        let r3 = set_reg_hkcu_string("Environment", "ALL_PROXY", &proxy_target);
-        let r4 = set_reg_hkcu_string(
-            "Environment",
-            "NO_PROXY",
-            "localhost,127.0.0.1,::1,local.home",
-        );
+        let plugin_environment = plugin_proxy_environment(&proxy_target);
+        let mut all_environment_values_written = true;
+        for (name, value) in &plugin_environment {
+            if set_reg_hkcu_string("Environment", name, value).is_err() {
+                all_environment_values_written = false;
+            }
+        }
 
-        if r1.is_ok() && r2.is_ok() && r3.is_ok() && r4.is_ok() {
+        if all_environment_values_written {
             env_fixed = true;
-            // 同步设置当前进程的环境变量
-            std::env::set_var("HTTP_PROXY", &proxy_target);
-            std::env::set_var("HTTPS_PROXY", &proxy_target);
-            std::env::set_var("ALL_PROXY", &proxy_target);
+            // 同步当前进程，后续启动的 Antigravity 与 Node 插件立即继承代理。
+            for (name, value) in &plugin_environment {
+                std::env::set_var(name, value);
+            }
         }
 
         // 2. 修复 Windows 系统代理开关注册表
@@ -518,7 +548,7 @@ pub fn fix_antigravity_proxy(custom_proxy: Option<String>) -> Result<Antigravity
         system_proxy_fixed,
         broadcast_sent,
         message: format!(
-            "修复成功！已将代理 [{}] 写入用户全局环境变量 (HTTP_PROXY/HTTPS_PROXY/ALL_PROXY)，并已同步修正快捷方式启动参数与系统代理注册表！",
+            "修复成功！已将代理 [{}] 写入大小写全局代理变量，并启用 NODE_USE_ENV_PROXY；Antigravity 及其启动的 Node 插件将自动继承代理。快捷方式与系统代理注册表也已同步更新！",
             proxy_target
         ),
     })
@@ -528,14 +558,14 @@ pub fn fix_antigravity_proxy(custom_proxy: Option<String>) -> Result<Antigravity
 pub fn clear_antigravity_proxy() -> Result<String, String> {
     #[cfg(target_os = "windows")]
     {
-        let _ = delete_reg_hkcu_value("Environment", "HTTP_PROXY");
-        let _ = delete_reg_hkcu_value("Environment", "HTTPS_PROXY");
-        let _ = delete_reg_hkcu_value("Environment", "ALL_PROXY");
-        let _ = delete_reg_hkcu_value("Environment", "NO_PROXY");
-
-        std::env::remove_var("HTTP_PROXY");
-        std::env::remove_var("HTTPS_PROXY");
-        std::env::remove_var("ALL_PROXY");
+        for name in PROXY_ENVIRONMENT_NAMES
+            .iter()
+            .chain(NO_PROXY_ENVIRONMENT_NAMES.iter())
+            .chain(std::iter::once(&NODE_USE_ENV_PROXY))
+        {
+            let _ = delete_reg_hkcu_value("Environment", name);
+            std::env::remove_var(name);
+        }
 
         broadcast_environment_change();
 
@@ -555,7 +585,7 @@ pub fn clear_antigravity_proxy() -> Result<String, String> {
         }
     }
 
-    Ok("已成功清除代理环境变量与快捷方式附加参数".to_string())
+    Ok("已成功清除大小写代理环境变量、NODE_USE_ENV_PROXY 与快捷方式附加参数".to_string())
 }
 
 /// 以完全代理模式直接拉起 Antigravity
@@ -573,9 +603,9 @@ pub fn launch_antigravity_with_proxy(custom_proxy: Option<String>) -> Result<Str
     {
         let mut cmd = crate::create_hidden_command(&exe);
         cmd.arg(format!("--proxy-server={}", proxy_target));
-        cmd.env("HTTP_PROXY", &proxy_target);
-        cmd.env("HTTPS_PROXY", &proxy_target);
-        cmd.env("ALL_PROXY", &proxy_target);
+        for (name, value) in plugin_proxy_environment(&proxy_target) {
+            cmd.env(name, value);
+        }
         cmd.spawn()
             .map_err(|e| format!("拉起 Antigravity 失败: {}", e))?;
     }
@@ -588,7 +618,8 @@ pub fn launch_antigravity_with_proxy(custom_proxy: Option<String>) -> Result<Str
 
 /// 测试 Antigravity Google API 连通性
 pub async fn test_google_api(custom_proxy: Option<String>) -> Result<GoogleApiTestResult, String> {
-    let target_url = "https://daily-cloudcode-pa.googleapis.com";
+    // Gemini Discovery 接口无需 API Key，正常响应必须为 2xx，适合作为真实连通性探针。
+    let target_url = "https://generativelanguage.googleapis.com/$discovery/rest?version=v1beta";
     let start_time = Instant::now();
 
     let mut client_builder = reqwest::Client::builder()
@@ -608,14 +639,17 @@ pub async fn test_google_api(custom_proxy: Option<String>) -> Result<GoogleApiTe
         Ok(resp) => {
             let latency_ms = start_time.elapsed().as_millis() as u64;
             let status = resp.status().as_u16();
-            // Google daily-cloudcode 根路径通常返回 404 或 403，只要网络能连通返回状态码即可判定代理成功连接！
-            let is_success = status < 500;
+            let is_success = is_google_api_success(resp.status());
             Ok(GoogleApiTestResult {
                 success: is_success,
                 latency_ms,
                 status_code: status,
                 target_url: target_url.to_string(),
-                error_msg: None,
+                error_msg: if is_success {
+                    None
+                } else {
+                    Some(format!("Google API 返回 HTTP {}", status))
+                },
             })
         }
         Err(err) => {
@@ -641,5 +675,28 @@ mod tests {
         assert!(proxy.is_some());
         let p_str = proxy.unwrap();
         assert!(p_str.starts_with("http://127.0.0.1:"));
+    }
+
+    #[test]
+    fn plugin_proxy_environment_contains_node_and_lowercase_variables() {
+        let variables = plugin_proxy_environment("http://127.0.0.1:7897");
+
+        assert!(variables.contains(&("HTTP_PROXY", "http://127.0.0.1:7897".to_string())));
+        assert!(variables.contains(&("HTTPS_PROXY", "http://127.0.0.1:7897".to_string())));
+        assert!(variables.contains(&("ALL_PROXY", "http://127.0.0.1:7897".to_string())));
+        assert!(variables.contains(&("http_proxy", "http://127.0.0.1:7897".to_string())));
+        assert!(variables.contains(&("https_proxy", "http://127.0.0.1:7897".to_string())));
+        assert!(variables.contains(&("all_proxy", "http://127.0.0.1:7897".to_string())));
+        assert!(variables.contains(&("NODE_USE_ENV_PROXY", "1".to_string())));
+    }
+
+    #[test]
+    fn google_api_test_accepts_only_success_status_codes() {
+        assert!(is_google_api_success(reqwest::StatusCode::OK));
+        assert!(!is_google_api_success(reqwest::StatusCode::NOT_FOUND));
+        assert!(!is_google_api_success(reqwest::StatusCode::UNAUTHORIZED));
+        assert!(!is_google_api_success(
+            reqwest::StatusCode::INTERNAL_SERVER_ERROR
+        ));
     }
 }

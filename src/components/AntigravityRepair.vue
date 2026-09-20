@@ -107,7 +107,7 @@
       </div>
       <p class="reason-desc">
         Antigravity 内部采用 <b>Golang (Go语言)</b> 与 <b>Node.js</b> 核心守护进程处理 AI 通信与 Google CloudCode 服务。
-        在 Windows 操作系统中，<b>Go 语言和 Node.js 严格忽略 Windows 系统代理设置（WinINet）</b>，仅读取系统环境变量 <code>HTTP_PROXY</code> 和 <code>HTTPS_PROXY</code>。若未配置环境变量，所有底层会话将全部直连 Google 官方服务器而触发连接超时！
+        在 Windows 操作系统中，<b>Go 语言和 Node.js 严格忽略 Windows 系统代理设置（WinINet）</b>。一键修复会写入大小写代理环境变量并启用 <code>NODE_USE_ENV_PROXY</code>，使 Antigravity 及其启动的 DeepSeek Harness 等 Node 插件统一继承代理。
       </p>
     </section>
 
@@ -191,7 +191,7 @@
         <AlertTriangle v-else :size="16" />
         <div class="test-res-text">
           <span class="res-status">
-            {{ testResult.success ? "✓ Google CloudCode 连通成功！代理已生效！" : "✗ 连接失败，未能连通 Google 服务器" }}
+            {{ testResult.success ? "✓ Google Gemini API 连通成功！代理已生效！" : "✗ Google API 校验失败" }}
           </span>
           <span class="res-details">
             目标: {{ testResult.target_url }} | 耗时: {{ testResult.latency_ms }} ms | 响应码: {{ testResult.status_code }}

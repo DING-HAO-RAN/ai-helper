@@ -1,12 +1,11 @@
 <template>
   <header
     class="titlebar"
-    data-tauri-drag-region="deep"
     @mousedown="handleTitlebarMouseDown"
     @dblclick="handleToggleMaximize"
   >
     <!-- 左侧 Logo 与系统指示灯 -->
-    <div class="brand-zone" data-tauri-drag-region="deep">
+    <div class="brand-zone">
       <div class="logo-box">
         <img src="/cyber-core.png" alt="Logo" class="logo-img" />
       </div>
@@ -14,16 +13,16 @@
         <span class="pulse-dot"></span>
         <span class="status-text">SYS_ONLINE</span>
       </div>
-      <div class="app-title" data-tauri-drag-region="deep">
+      <div class="app-title">
         AI HELPER <span class="title-tag">MATRIX v1.0</span>
       </div>
     </div>
 
     <!-- 中间拖拽扩展区 -->
-    <div class="drag-spacer" data-tauri-drag-region="deep"></div>
+    <div class="drag-spacer"></div>
 
     <!-- 右侧窗口控制按钮 -->
-    <div class="window-controls" data-tauri-drag-region="false" @mousedown.stop>
+    <div class="window-controls" @mousedown.stop>
       <button class="win-btn win-min" title="最小化" @click="handleMinimize">
         <Minus :size="14" />
       </button>
