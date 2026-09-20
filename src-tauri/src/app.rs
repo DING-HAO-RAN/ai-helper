@@ -8,6 +8,16 @@ pub fn run_desktop_app() {
     // 1. 程序启动时自动在程序所在文件夹创建设置配置文件与数据缓存文件
     init_app_workspace();
 
+    // 2. 启动后台轻量代理自动同步守护任务 (线程常驻，极低开销)
+    std::thread::spawn(|| {
+        loop {
+            std::thread::sleep(std::time::Duration::from_secs(3));
+            if crate::storage::load_config().auto_sync_system_proxy {
+                crate::antigravity::check_and_auto_sync_system_proxy();
+            }
+        }
+    });
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .invoke_handler(tauri::generate_handler![
@@ -49,6 +59,7 @@ pub fn run_desktop_app() {
             restore_system_timezone,
             diagnose_antigravity_status,
             fix_antigravity_proxy_action,
+            sync_system_proxy_action,
             clear_antigravity_proxy_action,
             launch_antigravity_action,
             test_antigravity_google_api,

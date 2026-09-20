@@ -17,7 +17,7 @@ use crate::timezone::types::{ChatGPTStatus, ProxyGeoInfo, TimezonePreset};
 use crate::antigravity::types::{AntigravityDiagnostic, AntigravityFixResult, GoogleApiTestResult};
 use crate::antigravity::{
     clear_antigravity_proxy, diagnose_antigravity, fix_antigravity_proxy,
-    launch_antigravity_with_proxy, test_google_api,
+    launch_antigravity_with_proxy, sync_system_proxy_to_env, test_google_api,
 };
 use crate::timezone::{
     detect_proxy_geo, get_chatgpt_full_status, get_timezone_presets,
@@ -299,6 +299,11 @@ pub fn diagnose_antigravity_status() -> AntigravityDiagnostic {
 #[tauri::command]
 pub fn fix_antigravity_proxy_action(custom_proxy: Option<String>) -> Result<AntigravityFixResult, String> {
     fix_antigravity_proxy(custom_proxy)
+}
+
+#[tauri::command]
+pub fn sync_system_proxy_action() -> Result<AntigravityFixResult, String> {
+    sync_system_proxy_to_env()
 }
 
 #[tauri::command]

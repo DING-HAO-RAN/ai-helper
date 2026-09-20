@@ -257,6 +257,18 @@ fn handle_antigravity_subcommand(subargs: &[String]) {
             console_println("--------------------------------------------------");
             std::process::exit(0);
         }
+        "sync-sys" => {
+            match crate::antigravity::sync_system_proxy_to_env() {
+                Ok(res) => {
+                    console_println(&format!("✓ {}", res.message));
+                    std::process::exit(0);
+                }
+                Err(err) => {
+                    console_println(&format!("× 同步失败: {}", err));
+                    std::process::exit(1);
+                }
+            }
+        }
         "fix" => {
             let proxy_arg = subargs.get(1).cloned();
             match crate::antigravity::fix_antigravity_proxy(proxy_arg) {
@@ -335,6 +347,7 @@ fn print_help() {
   ai-helper tz apply [timezone_id]    单独将时区注入 ChatGPT (不影响系统时区)
   ai-helper tz restore                一键恢复 Windows 系统原始时区
   ai-helper agy status                体检 Antigravity 客户端与代理环境变量
+  ai-helper agy sync-sys              一键将 Windows 当前系统代理同步给全局环境
   ai-helper agy fix [proxy_url]       一键修复 Antigravity 代理 (写环境变量与快捷方式)
   ai-helper agy test [proxy_url]      测试通过代理连接 Google CloudCode API
   ai-helper agy launch [proxy_url]    以强制代理模式拉起 Antigravity

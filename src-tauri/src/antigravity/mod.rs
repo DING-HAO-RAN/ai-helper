@@ -250,6 +250,96 @@ fn set_reg_hkcu_dword(subkey: &str, value_name: &str, val: u32) -> Result<(), St
     }
 }
 
+/// 解析与规范化 Windows 注册表中的 ProxyServer 格式 (例如 "127.0.0.1:7897" 或 "http=127.0.0.1:7897;https=127.0.0.1:7897")
+pub fn normalize_proxy_server_string(raw: &str) -> Option<String> {
+    let clean = raw.trim();
+    if clean.is_empty() {
+        return None;
+    }
+
+    if clean.contains(';') {
+        for part in clean.split(';') {
+            let part = part.trim();
+            if part.starts_with("http=") || part.starts_with("https=") {
+                let addr = part.split('=').nth(1).unwrap_or("").trim();
+                if !addr.is_empty() {
+                    return Some(if addr.starts_with("http://") || addr.starts_with("https://") || addr.starts_with("socks5://") {
+                        addr.to_string()
+                    } else {
+                        format!("http://{}", addr)
+                    });
+                }
+            }
+        }
+    }
+
+    if clean.starts_with("http://") || clean.starts_with("https://") || clean.starts_with("socks5://") {
+        Some(clean.to_string())
+    } else {
+        Some(format!("http://{}", clean))
+    }
+}
+
+/// 获取 Windows 系统代理开关与地址
+pub fn get_windows_system_proxy_info() -> (bool, Option<String>) {
+    #[cfg(target_os = "windows")]
+    {
+        let enabled = get_reg_hkcu_dword(
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+            "ProxyEnable",
+        )
+        .map(|v| v == 1)
+        .unwrap_or(false);
+
+        let raw_proxy = get_reg_hkcu_string(
+            "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
+            "ProxyServer",
+        );
+
+        let normalized = raw_proxy.as_deref().and_then(normalize_proxy_server_string);
+        (enabled, normalized)
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        (false, None)
+    }
+}
+
+/// 自动跟随 Windows 系统代理的单次核对维护
+pub fn check_and_auto_sync_system_proxy() {
+    let (enabled, proxy_opt) = get_windows_system_proxy_info();
+    let current_env_proxy = std::env::var("HTTP_PROXY").ok().or_else(|| {
+        #[cfg(target_os = "windows")]
+        {
+            get_reg_hkcu_string("Environment", "HTTP_PROXY")
+        }
+        #[cfg(not(target_os = "windows"))]
+        None
+    });
+
+    if enabled {
+        if let Some(target) = proxy_opt {
+            // 如果环境变量中的代理与系统代理不同，自动同步
+            if current_env_proxy.as_deref() != Some(&target) {
+                let _ = fix_antigravity_proxy(Some(target));
+            }
+        }
+    }
+}
+
+/// 一键将 Windows 当前系统代理设置无缝同步为全局环境代理
+pub fn sync_system_proxy_to_env() -> Result<AntigravityFixResult, String> {
+    let (enabled, proxy_opt) = get_windows_system_proxy_info();
+    if !enabled {
+        return Err("检测到当前 Windows 系统代理处于关闭状态 (ProxyEnable=0)。请先在代理软件 (如 Clash/Verge/v2rayN) 中开启「系统代理」开关，然后再点击同步！".to_string());
+    }
+
+    let proxy_url = proxy_opt.ok_or_else(|| "Windows 系统代理虽然开启，但未检测到有效的 ProxyServer 代理地址".to_string())?;
+
+    fix_antigravity_proxy(Some(proxy_url))
+}
+
 /// 自动侦测本机当前正在活跃监听的本地代理端口 (例如 127.0.0.1:7897, 7890 等)
 pub fn detect_active_local_proxy() -> Option<String> {
     // 候选常用代理端口 (Mihomo/Clash/V2Ray/Singbox)
@@ -267,21 +357,9 @@ pub fn detect_active_local_proxy() -> Option<String> {
     }
 
     // 从系统注册表 Internet Settings 获取
-    #[cfg(target_os = "windows")]
-    {
-        if let Some(proxy_str) = get_reg_hkcu_string(
-            "Software\\Microsoft\\Windows\\CurrentVersion\\Internet Settings",
-            "ProxyServer",
-        ) {
-            let clean = proxy_str.trim();
-            if !clean.is_empty() {
-                if clean.starts_with("http://") || clean.starts_with("socks5://") {
-                    return Some(clean.to_string());
-                } else {
-                    return Some(format!("http://{}", clean));
-                }
-            }
-        }
+    let (_, sys_proxy) = get_windows_system_proxy_info();
+    if let Some(p) = sys_proxy {
+        return Some(p);
     }
 
     None

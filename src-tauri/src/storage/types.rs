@@ -54,6 +54,8 @@ pub struct AppConfig {
     pub auto_minimize_to_orb: bool,
     pub default_token_alias: String,
     pub scan_exclude_dirs: Vec<String>,
+    #[serde(default)]
+    pub auto_sync_system_proxy: bool,
     pub created_at: String,
     pub updated_at: String,
 }
@@ -72,6 +74,7 @@ impl Default for AppConfig {
                 "dist".to_string(),
                 "AppData".to_string(),
             ],
+            auto_sync_system_proxy: false,
             created_at: now.clone(),
             updated_at: now,
         }

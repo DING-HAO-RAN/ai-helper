@@ -9,10 +9,12 @@
           <span v-if="diagInfo?.installed" class="cyber-badge cyber-badge-green">已检测到安装</span>
           <span v-else class="cyber-badge cyber-badge-pink">未检测到安装</span>
         </div>
-        <button class="cyber-btn mini-btn" :disabled="loading" @click="runDiagnosis">
-          <RefreshCw :size="13" :class="{ 'spin-anim': loading }" />
-          <span>重新体检</span>
-        </button>
+        <div class="header-actions">
+          <button class="cyber-btn mini-btn" :disabled="loading" @click="runDiagnosis">
+            <RefreshCw :size="13" :class="{ 'spin-anim': loading }" />
+            <span>重新体检</span>
+          </button>
+        </div>
       </div>
 
       <div class="diag-grid">
@@ -47,26 +49,21 @@
         <!-- 本地活跃代理侦测 -->
         <div class="diag-col">
           <div class="col-header">
-            <span class="col-title">本地网络代理</span>
-            <span
-              class="cyber-badge"
-              :class="diagInfo?.detected_local_proxy ? 'cyber-badge-cyan' : 'cyber-badge-yellow'"
-            >
-              {{ diagInfo?.detected_local_proxy ? "● 活跃监听中" : "○ 未检测到活跃代理" }}
-            </span>
-          </div>
-          <div class="info-row">
-            <span class="label">侦测端口:</span>
-            <span class="val-bright">{{ diagInfo?.detected_local_proxy || "未识别 (可手动指定)" }}</span>
-          </div>
-          <div class="info-row">
-            <span class="label">系统代理:</span>
+            <span class="col-title">Windows 系统代理设置</span>
             <span
               class="cyber-badge"
               :class="diagInfo?.system_proxy_enable ? 'cyber-badge-green' : 'cyber-badge-pink'"
             >
-              {{ diagInfo?.system_proxy_enable ? "✓ 已开启" : "✗ 未开启 (ProxyEnable=0)" }}
+              {{ diagInfo?.system_proxy_enable ? "● 系统代理已开启" : "○ 未开启 (ProxyEnable=0)" }}
             </span>
+          </div>
+          <div class="info-row">
+            <span class="label">系统代理地址:</span>
+            <span class="val-bright">{{ diagInfo?.system_proxy_server || "未配置" }}</span>
+          </div>
+          <div class="info-row">
+            <span class="label">本地活跃端口:</span>
+            <span class="val-cyan">{{ diagInfo?.detected_local_proxy || "未识别 (可手动指定)" }}</span>
           </div>
         </div>
 
@@ -99,15 +96,15 @@
       </div>
     </section>
 
-    <!-- 中部：故障原因机理深度解析 -->
+    <!-- 中部：故障原因机理深度解析与已启动进程须知 -->
     <section class="reason-card cyber-card">
       <div class="reason-header">
         <AlertCircle class="neon-icon" :size="15" />
-        <span class="reason-title">为什么 Antigravity 默认无法走系统代理？</span>
+        <span class="reason-title">💡 为什么只开启系统代理时仍会 fetch failed / 连不上 Gemini？</span>
       </div>
       <p class="reason-desc">
-        Antigravity 内部采用 <b>Golang (Go语言)</b> 与 <b>Node.js</b> 核心守护进程处理 AI 通信与 Google CloudCode 服务。
-        在 Windows 操作系统中，<b>Go 语言和 Node.js 严格忽略 Windows 系统代理设置（WinINet）</b>。一键修复会写入大小写代理环境变量并启用 <code>NODE_USE_ENV_PROXY</code>，使 Antigravity 及其启动的 DeepSeek Harness 等 Node 插件统一继承代理。
+        1. <b>WinINet 系统代理的局限</b>：Clash/Verge 的“系统代理”仅写入 Windows 注册表，Edge/Chrome 能识别，但 <b>Golang (Go语言)</b> 与 <b>Node.js (包括 DeepSeek Harness、VS Code 插件) 严格忽略系统代理</b>，只识别环境变量 <code>HTTP_PROXY</code> 与 <code>HTTPS_PROXY</code>！<br />
+        2. <b>Windows 环境变量继承机制</b>：对于<b>已经处于启动运行中</b>的后台服务进程（例如当前的 DeepSeek Harness），内存中的环境变量是在启动那一刻固化的。在完成代理修复后，请<b>重新启动一次该后台服务/终端</b>，新环境变量即可注入生效，彻底告别 <code>fetch failed</code>！
       </p>
     </section>
 
@@ -117,6 +114,17 @@
         <div class="header-left">
           <Zap class="neon-icon" :size="17" />
           <span class="card-title">ONE-CLICK PROXY FIX // 一键全自动修复中心</span>
+        </div>
+        <div class="header-actions">
+          <label class="auto-sync-toggle" title="开启后，程序每隔 3 秒自动检查 Windows 系统代理并无缝同步至环境变量">
+            <input
+              type="checkbox"
+              :checked="autoSyncEnabled"
+              class="cyber-checkbox"
+              @change="toggleAutoSync"
+            />
+            <span>⚡ 自动跟随 Windows 系统代理 (后台同步)</span>
+          </label>
         </div>
       </div>
 
@@ -132,31 +140,52 @@
           />
         </div>
         <button
+          v-if="diagInfo?.system_proxy_server && targetProxy !== normalizeProxy(diagInfo.system_proxy_server)"
+          class="cyber-btn"
+          title="将当前 Windows 系统代理设为目标"
+          @click="targetProxy = normalizeProxy(diagInfo!.system_proxy_server!)"
+        >
+          填入系统代理
+        </button>
+        <button
           v-if="diagInfo?.detected_local_proxy && targetProxy !== diagInfo.detected_local_proxy"
           class="cyber-btn"
+          title="将检测到的本地活跃代理端口设为目标"
           @click="targetProxy = diagInfo.detected_local_proxy"
         >
-          填入检测到的代理
+          填入活跃端口
         </button>
       </div>
 
       <!-- 核心操作按钮栏 -->
       <div class="action-btn-toolbar">
         <div class="btn-group-left">
+          <!-- 一键从当前系统代理导入 -->
           <button
             class="cyber-btn cyber-btn-primary big-fix-btn"
             :disabled="isFixing || !targetProxy"
-            title="自动写入用户全局环境变量、修复桌面快捷方式参数并开启系统代理注册表"
+            title="自动写入用户全局环境变量 (大写+小写)、启用 NODE_USE_ENV_PROXY、修复桌面快捷方式参数并开启系统代理"
             @click="handleApplyFix"
           >
             <Sparkles :size="16" />
             <span>{{ isFixing ? "正在执行全自动修复..." : "⚡ 一键全面修复 Antigravity 代理 (推荐)" }}</span>
           </button>
 
+          <!-- 一键直接同步 Windows 系统代理 -->
+          <button
+            class="cyber-btn"
+            :disabled="isFixing"
+            title="直接抓取 Windows 当前开启的系统代理并瞬间同步给环境代理"
+            @click="handleSyncFromSystemProxy"
+          >
+            <RefreshCw :size="14" :class="{ 'spin-anim': isFixing }" />
+            <span>🔄 从当前系统代理一键同步</span>
+          </button>
+
           <button
             class="cyber-btn"
             :disabled="isTesting"
-            title="在线测试能否通过代理连接到 Google CloudCode / Gemini 官方服务器"
+            title="在线测试能否通过代理连接到 Google CloudCode / Gemini 官方 API"
             @click="handleTestGoogleApi"
           >
             <Activity :size="14" :class="{ 'spin-anim': isTesting }" />
@@ -171,7 +200,7 @@
             @click="handleLaunchAntigravity"
           >
             <Power :size="14" />
-            <span>以强制代理拉起 Antigravity</span>
+            <span>强制代理拉起 Antigravity</span>
           </button>
 
           <button
@@ -191,11 +220,11 @@
         <AlertTriangle v-else :size="16" />
         <div class="test-res-text">
           <span class="res-status">
-            {{ testResult.success ? "✓ Google Gemini API 连通成功！代理已生效！" : "✗ Google API 校验失败" }}
+            {{ testResult.success ? "✓ Google Gemini API 连通成功！代理已稳定生效！" : "✗ Google API 校验失败" }}
           </span>
           <span class="res-details">
             目标: {{ testResult.target_url }} | 耗时: {{ testResult.latency_ms }} ms | 响应码: {{ testResult.status_code }}
-            {{ testResult.error_msg ? ` | 错误: ${testResult.error_msg}` : "" }}
+            {{ testResult.error_msg ? ` | 详情: ${testResult.error_msg}` : "" }}
           </span>
         </div>
       </div>
@@ -254,8 +283,18 @@ interface GoogleApiTestResult {
   error_msg: string | null;
 }
 
+interface AppConfig {
+  auto_minimize_to_orb: boolean;
+  default_token_alias: string;
+  scan_exclude_dirs: string[];
+  auto_sync_system_proxy: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 const diagInfo = ref<AntigravityDiagnostic | null>(null);
 const targetProxy = ref("http://127.0.0.1:7897");
+const autoSyncEnabled = ref(false);
 const loading = ref(false);
 const isFixing = ref(false);
 const isTesting = ref(false);
@@ -265,13 +304,51 @@ const hasEnvProxy = computed(() => {
   return !!diagInfo.value?.env_http_proxy && !!diagInfo.value?.env_https_proxy;
 });
 
+const normalizeProxy = (raw: string) => {
+  if (raw.startsWith("http://") || raw.startsWith("https://") || raw.startsWith("socks5://")) {
+    return raw;
+  }
+  return `http://${raw}`;
+};
+
+// 读取系统配置中的自动同步状态
+const loadConfig = async () => {
+  try {
+    const cfg = await invoke<AppConfig>("get_app_config");
+    autoSyncEnabled.value = !!cfg.auto_sync_system_proxy;
+  } catch (err) {
+    console.error("读取设置失败:", err);
+  }
+};
+
+// 切换自动跟随系统代理开关
+const toggleAutoSync = async (e: Event) => {
+  const target = e.target as HTMLInputElement;
+  const checked = target.checked;
+  try {
+    const cfg = await invoke<AppConfig>("get_app_config");
+    cfg.auto_sync_system_proxy = checked;
+    await invoke("save_app_config", { config: cfg });
+    autoSyncEnabled.value = checked;
+    cyberToast(
+      checked ? "已启用「自动跟随系统代理」后台同步模式" : "已关闭「自动跟随系统代理」",
+      "info"
+    );
+  } catch (err) {
+    target.checked = !checked;
+    cyberAlert("保存配置失败: " + err, "错误", "error");
+  }
+};
+
 // 执行体检诊断
 const runDiagnosis = async () => {
   loading.value = true;
   try {
     const res = await invoke<AntigravityDiagnostic>("diagnose_antigravity_status");
     diagInfo.value = res;
-    if (res.detected_local_proxy) {
+    if (res.system_proxy_server && res.system_proxy_enable) {
+      targetProxy.value = normalizeProxy(res.system_proxy_server);
+    } else if (res.detected_local_proxy) {
       targetProxy.value = res.detected_local_proxy;
     }
   } catch (err) {
@@ -283,6 +360,7 @@ const runDiagnosis = async () => {
 
 onMounted(() => {
   runDiagnosis();
+  loadConfig();
 });
 
 // 一键全面修复
@@ -298,6 +376,25 @@ const handleApplyFix = async () => {
     await runDiagnosis();
   } catch (err: any) {
     cyberAlert("修复失败: " + err, "错误", "error");
+  } finally {
+    isFixing.value = false;
+  }
+};
+
+// 一键直接从当前 Windows 系统代理同步
+const handleSyncFromSystemProxy = async () => {
+  isFixing.value = true;
+  try {
+    const res = await invoke<AntigravityFixResult>("sync_system_proxy_action");
+    cyberToast("已成功将 Windows 当前系统代理同步至全局环境！", "success");
+    await cyberAlert(
+      `${res.message}\n\n⚠️ 温馨提示：如果您的 DeepSeek Harness、终端或其他插件之前已经处于运行中，请在同步完成后重启一下该服务，新环境变量即可注入生效！`,
+      "同步成功",
+      "success"
+    );
+    await runDiagnosis();
+  } catch (err: any) {
+    cyberAlert("同步失败: " + err, "错误", "error");
   } finally {
     isFixing.value = false;
   }
@@ -387,6 +484,25 @@ const handleClearProxy = async () => {
   gap: 8px;
 }
 
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.auto-sync-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--cyber-neon-cyan);
+  cursor: pointer;
+  background: rgba(0, 240, 255, 0.08);
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid rgba(0, 240, 255, 0.2);
+}
+
 .neon-icon {
   color: var(--cyber-neon-cyan);
 }
@@ -454,6 +570,11 @@ const handleClearProxy = async () => {
 .val-bright {
   color: var(--cyber-neon-cyan);
   font-weight: 700;
+  font-family: 'Consolas', monospace;
+}
+
+.val-cyan {
+  color: var(--cyber-neon-cyan);
   font-family: 'Consolas', monospace;
 }
 
@@ -567,7 +688,7 @@ const handleClearProxy = async () => {
 
 .big-fix-btn {
   height: 36px;
-  padding: 0 18px;
+  padding: 0 16px;
   font-size: 13px;
 }
 
